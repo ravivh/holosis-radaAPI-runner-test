@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<cdtprojectproperties>
+<section name="org.eclipse.cdt.internal.ui.wizards.settingswizards.IncludePaths">
+<language name="C Source File">
+<includepath>/usr/arm-linux-gnueabihf/include</includepath>
+<includepath workspace_path="true">/NoveldaApp/src2/soc/nxp</includepath>
+<includepath>/home/echocare/GitRepositories/wiringX/src</includepath>
+<includepath workspace_path="true">/NoveldaApp/include</includepath>
+<includepath workspace_path="true">/NoveldaApp/src2</includepath>
+<includepath workspace_path="true">/NoveldaApp/src/Radar</includepath>
+
+</language>
+<language name="C++ Source File">
+<includepath>/usr/arm-linux-gnueabihf/include</includepath>
+<includepath workspace_path="true">/NoveldaApp/src2/soc/nxp</includepath>
+<includepath workspace_path="true">/NoveldaApp/src/Radar</includepath>
+<includepath workspace_path="true">/NoveldaApp/src2</includepath>
+<includepath workspace_path="true">/NoveldaApp/src</includepath>
+<includepath workspace_path="true">/NoveldaApp/src/hal</includepath>
+<includepath workspace_path="true">/NoveldaApp/src/XDriver</includepath>
+<includepath workspace_path="true">/NoveldaApp/include</includepath>
+
+</language>
+<language name="Object File">
+
+</language>
+<language name="Assembly Source File">
+
+</language>
+</section>
+<section name="org.eclipse.cdt.internal.ui.wizards.settingswizards.Macros">
+<language name="C Source File">
+
+</language>
+<language name="C++ Source File">
+<macro>
+<name>__cplusplus</name><value>201103L</value>
+</macro>
+
+</language>
+<language name="Object File">
+
+</language>
+<language name="Assembly Source File">
+
+</language>
+</section>
+</cdtprojectproperties>
