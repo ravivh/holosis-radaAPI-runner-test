@@ -1,0 +1,39 @@
+################################################################################
+# Automatically-generated file. Do not edit!
+################################################################################
+
+# Add inputs and outputs from these tool invocations to the build variables 
+C_SRCS += \
+../src2/platform/raspberrypi/raspberrypi1b+.c \
+../src2/platform/raspberrypi/raspberrypi1b1.c \
+../src2/platform/raspberrypi/raspberrypi1b2.c \
+../src2/platform/raspberrypi/raspberrypi2.c \
+../src2/platform/raspberrypi/raspberrypi3.c \
+../src2/platform/raspberrypi/raspberrypizero.c 
+
+OBJS += \
+./src2/platform/raspberrypi/raspberrypi1b+.o \
+./src2/platform/raspberrypi/raspberrypi1b1.o \
+./src2/platform/raspberrypi/raspberrypi1b2.o \
+./src2/platform/raspberrypi/raspberrypi2.o \
+./src2/platform/raspberrypi/raspberrypi3.o \
+./src2/platform/raspberrypi/raspberrypizero.o 
+
+C_DEPS += \
+./src2/platform/raspberrypi/raspberrypi1b+.d \
+./src2/platform/raspberrypi/raspberrypi1b1.d \
+./src2/platform/raspberrypi/raspberrypi1b2.d \
+./src2/platform/raspberrypi/raspberrypi2.d \
+./src2/platform/raspberrypi/raspberrypi3.d \
+./src2/platform/raspberrypi/raspberrypizero.d 
+
+
+# Each subdirectory must supply rules for building sources it contributes
+src2/platform/raspberrypi/%.o: ../src2/platform/raspberrypi/%.c
+	@echo 'Building file: $<'
+	@echo 'Invoking: Cross GCC Compiler'
+	arm-linux-gnueabihf-gcc -I/usr/arm-linux-gnueabihf/include -I"/home/echocare/GitRepositories/Novelda/src2/soc/nxp" -I/home/echocare/GitRepositories/wiringX/src -I"/home/echocare/GitRepositories/Novelda/include" -I"/home/echocare/GitRepositories/Novelda/src2" -I"/home/echocare/GitRepositories/Novelda/src/Radar" -O3 -Wall -c -fmessage-length=0 -MMD -MP -MF"$(@:%.o=%.d)" -MT"$(@:%.o=%.d)" -o "$@" "$<"
+	@echo 'Finished building: $<'
+	@echo ' '
+
+

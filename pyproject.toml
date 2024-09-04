@@ -1,0 +1,17 @@
+[tool.poetry]
+name = "radarapi"
+version = "0.1.0"
+description = "Python API for communicating with the X4"
+authors = ["Leo Katz <lkatz@Holosishealth.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+flask = "^3.0.3"
+numpy = "^2.1.1"
+requests = "^2.32.3"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

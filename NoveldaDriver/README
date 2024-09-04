@@ -1,0 +1,3 @@
+The hal, Radar and XDriver directories are necessary for radar communication and setup.
+The NoveldaRadar.cpp, RemoteConnection.cpp, NoveldaXmlParser.cpp and Utilities.cpp are
+files used in the old NoveldaAppMatlab. They will be removed eventually
