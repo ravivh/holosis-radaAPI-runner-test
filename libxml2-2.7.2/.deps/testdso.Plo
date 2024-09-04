@@ -1,0 +1,55 @@
+testdso.lo: testdso.c \
+ /home/echocare/work/system/gcc-linaro-6.4.1-2018.05-x86_64_arm-linux-gnueabihf/arm-linux-gnueabihf/libc/usr/include/stdc-predef.h \
+ /home/echocare/work/system/gcc-linaro-6.4.1-2018.05-x86_64_arm-linux-gnueabihf/arm-linux-gnueabihf/libc/usr/include/stdio.h \
+ /home/echocare/work/system/gcc-linaro-6.4.1-2018.05-x86_64_arm-linux-gnueabihf/arm-linux-gnueabihf/libc/usr/include/features.h \
+ /home/echocare/work/system/gcc-linaro-6.4.1-2018.05-x86_64_arm-linux-gnueabihf/arm-linux-gnueabihf/libc/usr/include/sys/cdefs.h \
+ /home/echocare/work/system/gcc-linaro-6.4.1-2018.05-x86_64_arm-linux-gnueabihf/arm-linux-gnueabihf/libc/usr/include/bits/wordsize.h \
+ /home/echocare/work/system/gcc-linaro-6.4.1-2018.05-x86_64_arm-linux-gnueabihf/arm-linux-gnueabihf/libc/usr/include/gnu/stubs.h \
+ /home/echocare/work/system/gcc-linaro-6.4.1-2018.05-x86_64_arm-linux-gnueabihf/arm-linux-gnueabihf/libc/usr/include/gnu/stubs-hard.h \
+ /home/echocare/work/system/gcc-linaro-6.4.1-2018.05-x86_64_arm-linux-gnueabihf/lib/gcc/arm-linux-gnueabihf/6.4.1/include/stddef.h \
+ /home/echocare/work/system/gcc-linaro-6.4.1-2018.05-x86_64_arm-linux-gnueabihf/arm-linux-gnueabihf/libc/usr/include/bits/types.h \
+ /home/echocare/work/system/gcc-linaro-6.4.1-2018.05-x86_64_arm-linux-gnueabihf/arm-linux-gnueabihf/libc/usr/include/bits/typesizes.h \
+ /home/echocare/work/system/gcc-linaro-6.4.1-2018.05-x86_64_arm-linux-gnueabihf/arm-linux-gnueabihf/libc/usr/include/libio.h \
+ /home/echocare/work/system/gcc-linaro-6.4.1-2018.05-x86_64_arm-linux-gnueabihf/arm-linux-gnueabihf/libc/usr/include/_G_config.h \
+ /home/echocare/work/system/gcc-linaro-6.4.1-2018.05-x86_64_arm-linux-gnueabihf/arm-linux-gnueabihf/libc/usr/include/wchar.h \
+ /home/echocare/work/system/gcc-linaro-6.4.1-2018.05-x86_64_arm-linux-gnueabihf/lib/gcc/arm-linux-gnueabihf/6.4.1/include/stdarg.h \
+ /home/echocare/work/system/gcc-linaro-6.4.1-2018.05-x86_64_arm-linux-gnueabihf/arm-linux-gnueabihf/libc/usr/include/bits/stdio_lim.h \
+ /home/echocare/work/system/gcc-linaro-6.4.1-2018.05-x86_64_arm-linux-gnueabihf/arm-linux-gnueabihf/libc/usr/include/bits/sys_errlist.h \
+ /home/echocare/work/system/gcc-linaro-6.4.1-2018.05-x86_64_arm-linux-gnueabihf/arm-linux-gnueabihf/libc/usr/include/bits/stdio.h \
+ include/libxml/xmlexports.h
+
+/home/echocare/work/system/gcc-linaro-6.4.1-2018.05-x86_64_arm-linux-gnueabihf/arm-linux-gnueabihf/libc/usr/include/stdc-predef.h:
+
+/home/echocare/work/system/gcc-linaro-6.4.1-2018.05-x86_64_arm-linux-gnueabihf/arm-linux-gnueabihf/libc/usr/include/stdio.h:
+
+/home/echocare/work/system/gcc-linaro-6.4.1-2018.05-x86_64_arm-linux-gnueabihf/arm-linux-gnueabihf/libc/usr/include/features.h:
+
+/home/echocare/work/system/gcc-linaro-6.4.1-2018.05-x86_64_arm-linux-gnueabihf/arm-linux-gnueabihf/libc/usr/include/sys/cdefs.h:
+
+/home/echocare/work/system/gcc-linaro-6.4.1-2018.05-x86_64_arm-linux-gnueabihf/arm-linux-gnueabihf/libc/usr/include/bits/wordsize.h:
+
+/home/echocare/work/system/gcc-linaro-6.4.1-2018.05-x86_64_arm-linux-gnueabihf/arm-linux-gnueabihf/libc/usr/include/gnu/stubs.h:
+
+/home/echocare/work/system/gcc-linaro-6.4.1-2018.05-x86_64_arm-linux-gnueabihf/arm-linux-gnueabihf/libc/usr/include/gnu/stubs-hard.h:
+
+/home/echocare/work/system/gcc-linaro-6.4.1-2018.05-x86_64_arm-linux-gnueabihf/lib/gcc/arm-linux-gnueabihf/6.4.1/include/stddef.h:
+
+/home/echocare/work/system/gcc-linaro-6.4.1-2018.05-x86_64_arm-linux-gnueabihf/arm-linux-gnueabihf/libc/usr/include/bits/types.h:
+
+/home/echocare/work/system/gcc-linaro-6.4.1-2018.05-x86_64_arm-linux-gnueabihf/arm-linux-gnueabihf/libc/usr/include/bits/typesizes.h:
+
+/home/echocare/work/system/gcc-linaro-6.4.1-2018.05-x86_64_arm-linux-gnueabihf/arm-linux-gnueabihf/libc/usr/include/libio.h:
+
+/home/echocare/work/system/gcc-linaro-6.4.1-2018.05-x86_64_arm-linux-gnueabihf/arm-linux-gnueabihf/libc/usr/include/_G_config.h:
+
+/home/echocare/work/system/gcc-linaro-6.4.1-2018.05-x86_64_arm-linux-gnueabihf/arm-linux-gnueabihf/libc/usr/include/wchar.h:
+
+/home/echocare/work/system/gcc-linaro-6.4.1-2018.05-x86_64_arm-linux-gnueabihf/lib/gcc/arm-linux-gnueabihf/6.4.1/include/stdarg.h:
+
+/home/echocare/work/system/gcc-linaro-6.4.1-2018.05-x86_64_arm-linux-gnueabihf/arm-linux-gnueabihf/libc/usr/include/bits/stdio_lim.h:
+
+/home/echocare/work/system/gcc-linaro-6.4.1-2018.05-x86_64_arm-linux-gnueabihf/arm-linux-gnueabihf/libc/usr/include/bits/sys_errlist.h:
+
+/home/echocare/work/system/gcc-linaro-6.4.1-2018.05-x86_64_arm-linux-gnueabihf/arm-linux-gnueabihf/libc/usr/include/bits/stdio.h:
+
+include/libxml/xmlexports.h:
