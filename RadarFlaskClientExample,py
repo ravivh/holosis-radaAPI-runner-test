@@ -35,11 +35,11 @@ params_request = {
 # }
 
 # resp 70 fps
-# params_request = {
-#     'command': 'request', 'antenna_numbers': [56], 'repetitions': 5600,
-#     'r_start': 0.5, 'start_to_stop': 2.5,
-#     'prf_div': 8, 'pps': 35, 'fps': 70.0, 'downconversion_enabled': 0
-# }
+params_request = {
+    'command': 'request', 'antenna_numbers': [56], 'repetitions': 5600,
+    'r_start': 0.5, 'start_to_stop': 2.5,
+    'prf_div': 8, 'pps': 35, 'fps': 70.0, 'downconversion_enabled': 0
+}
 
 def add_upload_folder(data, return_address):
     data['return_address'] = return_address
@@ -62,9 +62,9 @@ def post_to_server(data, server_ip):
     print("Response: ", response)
 
 if __name__ == "__main__":
-    server_ip = 'http://192.168.252.10:5043/radar'
-    return_address = 'http://192.168.252.9:80/uploads'
-    init = False
+    server_ip = 'http://192.168.1.232:5043/radar'
+    return_address = 'http://192.168.1.231:80/uploads'
+    init = True
     change_params = False
     if init:      
         data = json.dumps(add_upload_folder(params_init, return_address))

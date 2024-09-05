@@ -11,6 +11,7 @@ import math
 import queue
 import select
 import socket
+import struct
 import sys
 import threading
 import time
@@ -297,8 +298,8 @@ class PythonRadarApi:
             if not self.request_queue.empty():
                 return_json = {
                     'status': -1,
-                    'data': None,
-                    'nbins': 0,
+                    'data': (ctypes.c_float*1)(0.0),
+                    'nbins': 1,
                     'errors': [],
                     'repetitions': 1,
                     'antenna_number': 1,
@@ -348,7 +349,7 @@ class PythonRadarApi:
             else:
                 status, data, bins = self.radar_request(**dynamic_param_names)
                 return_json['status'] = status
-                return_json['data'] = list(data)
+                return_json['data'] = data
                 return_json['nbins'] = bins
                 return_json['repetitions'] = dynamic_param_names['repetitions']
                 return_json['antenna_number'] = len(dynamic_param_names['antenna_numbers'])
@@ -381,7 +382,7 @@ class PythonRadarApi:
                 # here won't close the socket but will simply return the error
                 print("Error decoding input json: ", e)
                 callback("Error decoding input json!")
-                return
+                raise json.JSONDecodeError
         elif not isinstance(data, dict):
             raise TypeError('Unknown type')
         info = {'data': data, 'callback': callback}
@@ -426,16 +427,13 @@ class RadarCommunication:
         """
         return self
       
-    def result_ready(self, return_json: dict):
+    def result_ready(self, return_data: dict):
         """
         callback to call when processing is finished
         Inputs:
             return_json (dict): The dictionary of results from processing
         """
-        try:
-            self.send(json.dumps(return_json).encode('utf-8'))
-        except Exception as e:
-            print("Error encoding input json: ", e)
+        self.send(return_data)
     
     def send(self, json_output: str):
         """
@@ -449,7 +447,7 @@ class RadarCommunication:
 
 class RadarSocketCommunication(RadarCommunication):
 
-    def __init__(self, api_class: PythonRadarApi, timeout: float=20):
+    def __init__(self, api_class: PythonRadarApi, timeout: float=20, total_empty_count: int=60):
         """
         Class for socket communication Python api
         Inputs:
@@ -460,9 +458,11 @@ class RadarSocketCommunication(RadarCommunication):
         """
         super().__init__(api_class)
         self.timeout = timeout
+        self.total_empty_count = total_empty_count
         self.server_socket = None
         self.client_socket = None
         self.client_addr = None
+        self.empty_count = 0
     
     def setup(self, host: str='0.0.0.0', port: int=5044):
         """
@@ -490,20 +490,29 @@ class RadarSocketCommunication(RadarCommunication):
             try:                
                 data = self.client_socket.recv(1024).decode('utf-8')
                 print("Received data: ", data)
-                self.api_class.register_request(data, self.result_ready)               
+                if not data:
+                    self.empty_count += 1
+                    print(self.empty_count)
+                    if self.empty_count >= self.total_empty_count:
+                        print("Too many empty packets. Closing connection")
+                        self.reset_socket()
+                else:
+                    self.api_class.register_request(data, self.result_ready)               
             except socket.timeout as e:
                 print("Connection timed out!")
-                self.client_socket.close()
-                self.client_socket = None
+                self.reset_socket()
                 time.sleep(10)
             except Exception as e:
                 print("Error: ", e)
                 # is there a point in sending an error?
-                self.client_socket.close()
-                self.client_socket = None
+                self.reset_socket()
                 time.sleep(10)
             time.sleep(0.1)
-        
+    
+    def reset_socket(self):
+        self.client_socket.close()
+        self.client_socket = None
+        self.empty_count = 0     
     
     def start(self):
         """
@@ -528,6 +537,31 @@ class RadarSocketCommunication(RadarCommunication):
             self.server_socket.close()
             self.server_socket = None
         self.shutdown_event.set()
+
+    def result_ready(self, return_data: dict):
+        """
+        Callback to call when processing is finished.
+        The data will be returned to the client in bytes with the following format:
+        4 bytes for the length of the data
+        4 bytes for the status (int)
+        4 bytes for the nbins (int)
+        4 bytes for the number of repetitions (int)
+        4 bytes for the number of antennas (int)
+        n*4 bytes for the data (float)
+        Inputs:
+            return_data (dict): The dictionary of results from processing
+        """
+        try:
+            data = return_data['data']
+            ctype_bytes = bytes(data)
+            nbins = return_data['nbins']
+            repetitions = return_data['repetitions']
+            antenna_number = return_data['antenna_number']
+            status = return_data['status']
+            packed_data = struct.pack('iiii', status, nbins, repetitions, antenna_number) + ctype_bytes
+            self.send(packed_data)
+        except Exception as e:
+            print("Error encoding input json: ", e)
     
     def send(self, json_output: bytes):
         """
@@ -588,6 +622,7 @@ class RadarFlaskCommunication(RadarCommunication):
                 print("Error decoding input json: ", e)
                 # forward json to radar to get complete error message uploaded
                 self.api_class.register_request(data, self.result_ready)
+                # TODO: add handling for this error to raise the error as in socket?
                 return jsonify({'message': 'Invalid JSON'}), 400
             
             self.return_address = data['return_address']
@@ -606,6 +641,19 @@ class RadarFlaskCommunication(RadarCommunication):
             response = jsonify({'error': str(error)})
             response.status_code = 500
             return response
+    
+    def result_ready(self, return_json: dict):
+        """
+        callback to call when processing is finished
+        Inputs:
+            return_json (dict): The dictionary of results from processing
+        """
+        # the data is return as a ctype array - convert to list
+        return_json['data'] = list(return_json['data'])
+        try:
+            self.send(json.dumps(return_json).encode('utf-8'))
+        except Exception as e:
+            print("Error encoding input json: ", e)
 
     def send(self, json_output: str):
         """
