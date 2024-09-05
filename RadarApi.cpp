@@ -105,8 +105,6 @@ int radar_request(int* antenna_numbers, int antenna_len, int repetitions,
     // want to see if the setting persists from previous call
     printf("prfDiv last: %d\n", radar_params.params.prfDiv);
     radar_params.repetitions = (uint16_t)repetitions;
-    printf("repetitions: %d\n", repetitions);
-    printf("after cast %ud\n", radar_params.repetitions);
     radar_params.antenna_num = (uint16_t)antenna_len;
     radar_params.params.Rstart_m = Rstart_m;
     radar_params.params.startToStop_m = startToStop_m;

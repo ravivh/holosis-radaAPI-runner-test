@@ -26,7 +26,7 @@ def upload_file():
                         os.makedirs(folder_path)
                     # put file name convention here
                     file_name = app.config['file_name'] + '_' + datetime.datetime.now().strftime("%H_%M_%S") + '.npy'
-                    np.save(os.path.join(folder_path, file_name), np.array(data).reshape((repetitions, antenna_number, nbins)).squeeze())
+                    # np.save(os.path.join(folder_path, file_name), np.array(data).reshape((repetitions, antenna_number, nbins)).squeeze())
                     print("Data Saved Successfully!!")
                     return jsonify({'message': 'Data saved'}), 200
                 else:

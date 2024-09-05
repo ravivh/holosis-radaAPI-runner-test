@@ -14,11 +14,11 @@ params_change = {
     }
 
 # posture
-# params_request = {
-#     'command': 'request', 'antenna_numbers': list(range(64)), 'repetitions': 60,
-#     'r_start': 0.5, 'start_to_stop': 2.5,
-#     'prf_div': 16, 'pps': 5, 'fps': 250.0, 'downconversion_enabled': 0
-# }
+params_request = {
+    'command': 'request', 'antenna_numbers': list(range(64)), 'repetitions': 60,
+    'r_start': 0.5, 'start_to_stop': 2.5,
+    'prf_div': 16, 'pps': 5, 'fps': 250.0, 'downconversion_enabled': 0
+}
 
 #Motion
 #params_request = {
@@ -35,11 +35,11 @@ params_change = {
 # }
 
 # resp 70 fps
-params_request = {
-    'command': 'request', 'antenna_numbers': [56], 'repetitions': 5600,
-    'r_start': 0.5, 'start_to_stop': 2.5,
-    'prf_div': 8, 'pps': 35, 'fps': 70.0, 'downconversion_enabled': 0
-}
+# params_request = {
+#     'command': 'request', 'antenna_numbers': [56], 'repetitions': 5600,
+#     'r_start': 0.5, 'start_to_stop': 2.5,
+#     'prf_div': 8, 'pps': 35, 'fps': 70.0, 'downconversion_enabled': 0
+# }
 
 def add_upload_folder(data, return_address):
     data['return_address'] = return_address

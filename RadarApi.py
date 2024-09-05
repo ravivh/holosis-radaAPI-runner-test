@@ -1,5 +1,11 @@
+import argparse
 import ctypes
-from flask import Flask, request, jsonify
+try:
+    from flask import Flask, request, jsonify
+    flask_flag = 1
+except ImportError:
+    print("Flask not installed. Resorting to socket")
+    flask_flag = 0
 import json
 import math
 import queue
@@ -693,7 +699,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Python Api for X4')
     parser.add_argument('--flask', action="store_true", help='Enable flask server')
     args = parser.parse_args()
-    if args.flask:
+    if args.flask and flask_flag:
+        print("Starting Flask server")
         start_flask_server()
     else:
+        print("Starting socket server")
         start_socket_server()
