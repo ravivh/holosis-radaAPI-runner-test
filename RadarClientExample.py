@@ -18,7 +18,7 @@ params_change = {
 
 # FPS 10 Respiration
 params_request1 = {
-    'command': 'request', 'antenna_numbers': [56], 'repetitions': 800,
+    'command': 'request', 'antenna_numbers': [56], 'repetitions': 40,
     'r_start': 0.5, 'start_to_stop': 2.5,
     'prf_div': 8, 'pps': 250, 'fps': 10.0, 'downconversion_enabled': 0
 }
@@ -26,7 +26,7 @@ params_request1 = {
 # FPS 70 Respiration
 params_request2 = {
     'command': 'request', 'antenna_numbers': [56], 'repetitions': 4200,
-    'r_start': 0.5, 'start_to_stop': 2.5,
+    'r_start': 0.7, 'start_to_stop': 2.5,
     'prf_div': 8, 'pps': 35, 'fps': 70.0, 'downconversion_enabled': 0
 }
 
@@ -61,7 +61,7 @@ if __name__ == "__main__":
     server_ip = '192.168.1.232'
     # server_ip = '192.168.252.10'
     upload_folder = './data'
-    file_name = 'data'
+    file_name = 'experiment_data_3'
     
     client_socket = create_socket()
     client_socket.connect((server_ip, 5044))

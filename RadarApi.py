@@ -15,8 +15,9 @@ import struct
 import sys
 import threading
 import time
-from typing import Callable, Dict
+from typing import Callable, Dict, Tuple
 import urllib
+import uuid
 
 
 
@@ -427,13 +428,19 @@ class RadarCommunication:
         """
         return self
       
-    def result_ready(self, return_data: dict):
+    def result_ready(self, return_json: dict):
         """
-        callback to call when processing is finished
+        callback to call when processing is finished.
+        Default is an a json object to the client
         Inputs:
             return_json (dict): The dictionary of results from processing
         """
-        self.send(return_data)
+        # the data is return as a ctype array - convert to list
+        return_json['data'] = list(return_json['data'])
+        try:
+            self.send(json.dumps(return_json).encode('utf-8'))
+        except Exception as e:
+            print("Error encoding input json: ", e)
     
     def send(self, json_output: str):
         """
@@ -642,30 +649,66 @@ class RadarFlaskCommunication(RadarCommunication):
             response.status_code = 500
             return response
     
-    def result_ready(self, return_json: dict):
+    def result_ready(self, return_data: dict):
         """
-        callback to call when processing is finished
+        Callback to call when processing is finished.
+        The data will be returned to the client in bytes with the following format:
+        4 bytes for the length of the data
+        4 bytes for the status (int)
+        4 bytes for the nbins (int)
+        4 bytes for the number of repetitions (int)
+        4 bytes for the number of antennas (int)
+        n*4 bytes for the data (float)
         Inputs:
-            return_json (dict): The dictionary of results from processing
+            return_data (dict): The dictionary of results from processing
         """
-        # the data is return as a ctype array - convert to list
-        return_json['data'] = list(return_json['data'])
         try:
-            self.send(json.dumps(return_json).encode('utf-8'))
+            print(return_data)
+            data = return_data.pop('data')
+            ctype_bytes = bytes(data)
+            self.send(ctype_bytes, return_data)
         except Exception as e:
             print("Error encoding input json: ", e)
 
-    def send(self, json_output: str):
+    def send(self, binary_output: bytes, json_output: dict):
         """
-        sends serialized output to a given endpoint
+        sends a multipart form post to the endpoint. The JSON is sent as metadata in the first part, tagged as application/json.
+        The data is sent in the second part tagged as application/octet-stream. There is a unique boundary strin (uuid) to separate the parts.
         """
-        req = urllib.request.Request(self.return_address, data=json_output, headers={"Content-Type": "application/json"})
+        try:
+            body, content_type = create_multipart_form_data(binary_output, json.dumps(json_output))
+        except (json.JSONDecodeError, TypeError) as e:
+            print("Error encoding input json: ", e)
+            req = urllib.request.Request(self.return_address, data=json.dumps({'error': 'Cannot encode json input'}).encode('utf-8'), headers={"Content-Type": "application/json"})
+        except Exception as e:
+            print("Error creating response: ", e)
+            req = urllib.request.Request(self.return_address, data=json.dumps({'error': 'Unknown error', 'details': e}).encode('utf-8'), headers={"Content-Type": "application/json"})
+        else:
+            req = urllib.request.Request(self.return_address, data=body,
+                                        headers={"Content-Type": content_type, "Content-Length": str(len(body))},
+                                        method='POST')
         # Send the request and get the response
         with urllib.request.urlopen(req) as response:
             response_data = response.read()
             print('Response from client')
             print(response.getcode())
             print(response_data.decode())
+    
+
+def create_multipart_form_data(binary_data: bytes, json_data: str, json_field:str = 'json',
+                               binary_field='binary') -> Tuple[bytes, str]:
+    boundary = uuid.uuid4().hex
+    content_type = 'multipart/form-data; boundary={}'.format(boundary)
+    body = (
+        '--{}\r\n'.format(boundary) +
+        'Content-Disposition: form-data; name="{}"; filename="metadata.json"\r\n'.format(json_field) +
+        'Content-Type: application/json\r\n\r\n' + 
+        '{}\r\n'.format(json_data) +
+        '--{}\r\n'.format(boundary) +
+        'Content-Disposition: form-data; name="{}"; filename="data.bin"\r\n'.format(binary_field) +
+        'Content-Type: application/octet-stream\r\n\r\n'
+    ).encode('utf-8') + binary_data + '\r\n--{}--\r\n'.format(boundary).encode('utf-8')
+    return body, content_type
     
 
 def append_error(return_json, error):
