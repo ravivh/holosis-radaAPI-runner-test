@@ -30,6 +30,18 @@ params_request2 = {
     'prf_div': 8, 'pps': 35, 'fps': 70.0, 'downconversion_enabled': 0
 }
 
+params_request_posture = {
+    'command': 'request', 'antenna_numbers': list(range(64)), 'repetitions': 10,
+    'r_start': 0.7, 'start_to_stop': 2.5,
+    'prf_div': 16, 'pps': 5, 'fps': 250.0, 'downconversion_enabled': 0
+}
+
+params_request_motion = {
+    'command': 'request', 'antenna_numbers': [56], 'repetitions': 560,
+    'r_start': 0.7, 'start_to_stop': 2.5,
+    'prf_div': 10, 'pps': 4, 'fps': 350.0, 'downconversion_enabled': 0
+}
+
 def create_socket():
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     client_socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 64*1024)
@@ -61,7 +73,7 @@ if __name__ == "__main__":
     server_ip = '192.168.1.232'
     # server_ip = '192.168.252.10'
     upload_folder = './data'
-    file_name = 'experiment_data_3'
+    file_name = 'noise_data_posture'
     
     client_socket = create_socket()
     client_socket.connect((server_ip, 5044))
@@ -82,7 +94,7 @@ if __name__ == "__main__":
         status, nbins, repetitions, antenna_num, data = unpack_data(response)
         print("Status: ", status)
     
-    params_request = params_request2
+    params_request = params_request_posture
     params_to_send = json.dumps(params_request)  
     for i in range(2):
         client_socket.send(params_to_send.encode('utf-8'))

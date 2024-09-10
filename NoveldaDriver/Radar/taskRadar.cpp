@@ -81,9 +81,7 @@ void x4driver_data_ready(void)
 //   static int ronenDebug = 0 ;
 
     //printf("callback reached !\n");
-// TODO: want to return this to the user
-    x4driver_get_frame_bin_count(x4driver, &bin_count);
-    radar_params.bins = bin_count;
+
     x4driver_get_downconversion(x4driver, &down_conversion_enabled);
     if( once == 0 )
     {
@@ -1177,7 +1175,12 @@ int RadarConfigDynamicParameters( RadarApiNoveldaParams *params )
         //        return 1;
         return -1;
     }
+    
     printf("x4driver_set_frame_area success\n");
+    uint32_t bin_length;
+    x4driver_get_frame_bin_count(x4driver, &bin_length);
+    printf("x4driver_get_frame_bin_count success. Value: %d\n", bin_length);
+    radar_params.bins = bin_length;
 
 
     status = x4driver_check_configuration(x4driver);
@@ -1192,7 +1195,11 @@ int RadarConfigDynamicParameters( RadarApiNoveldaParams *params )
     }
 #endif // DEBUG
 
-    status = x4driver_set_fps(x4driver, params->fps); 
+}
+
+int StartRadar(RadarApiNoveldaParams *params)
+{
+    uint32_t status = x4driver_set_fps(x4driver, params->fps); 
     if (status != XEP_ERROR_X4DRIVER_OK)
     {
 #ifdef DEBUG
@@ -1207,10 +1214,8 @@ int RadarConfigDynamicParameters( RadarApiNoveldaParams *params )
     float32_t fps;
     x4driver_get_fps(x4driver, &fps);
     printf("fps is %f \n" , fps );
-
 	return 0;
 }
-
 
 int RadarConfigParameters( NoveldaRadarParams *params )
 {

@@ -40,7 +40,7 @@ typedef struct RadarApiParams
 	uint16_t antenna_num;
 	int* antennas;
 	RadarApiNoveldaParams params;
-	// what is this for?
+	// this will determine if radar is initialized
 	uint8_t state;
 	// bins - here it varies based on start/stop - probably should calculate it in python to allocate
 	// the correct number of bins
@@ -88,6 +88,7 @@ void RadarInitIndex( void );
 
 int RadarConfigConstantParameters( RadarApiNoveldaParams *params );
 int RadarConfigDynamicParameters( RadarApiNoveldaParams *params );
+int StartRadar(RadarApiNoveldaParams *params);
 
 /**
  * @brief Initialize Radar task.

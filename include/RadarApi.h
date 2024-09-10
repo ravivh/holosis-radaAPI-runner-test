@@ -12,6 +12,7 @@ typedef enum
 	FAILED_TO_CONFIGURE_NEW_PARAMETERS = -2,
 	FAILED_TO_GET_DATA = -3,
 	FAILED_TO_STOP_RADAR = -4,
+	RADAR_NO_INIT = -5,
 	
 } radar_api_error_codes;
 
@@ -26,12 +27,14 @@ int radar_init(int novelda_freq, int transmit_gain, int dacMin,
 	           int dacMax, float32_t tZeroNs, int iterations, int debug);
 
 int radar_request(int* antenna_numbers, int antenna_len, int repetitions,
- 				  float32_t* write_buffer, float32_t Rstart_m, float32_t startToStop_m,
-                  uint8_t prfDiv, uint16_t pps, float32_t fps, uint8_t downconversion_enable,
-				  uint8_t* finished);
+ 				  float32_t* write_buffer, uint8_t* finished);
 
 int radar_change_parameters(int novelda_freq, int transmit_gain, int dacMin,
 	                        int dacMax, float32_t tZeroNs, int iterations);
+
+int set_request_params(float32_t Rstart_m, float32_t startToStop_m,
+                       uint8_t prfDiv, uint16_t pps, float32_t fps,
+                       uint8_t downconversion_enable, uint32_t* bins);
 }
 #endif
 

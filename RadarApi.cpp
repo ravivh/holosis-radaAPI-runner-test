@@ -5,7 +5,7 @@
 
 
 // TODO: need to make this thread-safe
-RadarApiParams radar_params;
+RadarApiParams radar_params = {0};
 
 // types are based on x4driver api not internal x4 parameters structure
 // TODO: add struct for errors to include x4driver errors
@@ -17,12 +17,22 @@ int radar_init(int novelda_freq, int transmit_gain, int dacMin,
     including interrupt, gpio, spi and set the parameters for the radar which don't change during the device operation.
     Should only be called once! To change constant parameters, call radar_change_parameters.
     */
-    uint32_t status = taskRadar(NULL);
-    printf("Task Radar Status: %d\n", status);
-    if (status != 0)
+    uint32_t status = 0;
+    if(radar_params.state == 0)
     {
-        printf("Failed to initialize radar task\n");
-        return FAILED_TO_INITIALIZE_RADAR_TASK;
+        status = taskRadar(NULL);
+        printf("Task Radar Status: %d\n", status);
+        if (status != 0)
+        {
+            printf("Failed to initialize radar task\n");
+            return FAILED_TO_INITIALIZE_RADAR_TASK;
+        }
+        // if the radar successfully initializes, set the init flag
+        radar_params.state = 1;
+    }
+    else
+    {
+        printf("Radar already initialized - setting params\n");
     }
     status = radar_change_parameters(novelda_freq, transmit_gain, dacMin, dacMax, tZeroNs, iterations);
     return status;
@@ -36,6 +46,11 @@ int radar_change_parameters(int novelda_freq, int transmit_gain, int dacMin,
     This function will set the Novelda parameters which are constant over the course of the radar operation.
     */
     uint32_t status = 0;
+    if (radar_params.state == 0)
+    {
+        printf("Radar not initialized. Please call radar_init first\n");
+        return RADAR_NO_INIT;
+    }
    // TODO: think you should add feedback to python that the parameters are set
     // at least for debug - you can redirect printf to python which would work here
     radar_params.params.dacMin = (uint16_t)dacMin;
@@ -93,25 +108,21 @@ int radar_change_parameters(int novelda_freq, int transmit_gain, int dacMin,
     return 0;
 }
 
-int radar_request(int* antenna_numbers, int antenna_len, int repetitions,
- 				  float32_t* write_buffer, float32_t Rstart_m, float32_t startToStop_m,
-                  uint8_t prfDiv, uint16_t pps, float32_t fps, uint8_t downconversion_enable,
-                  uint8_t* finished)
+int radar_request(int* antenna_numbers, int antenna_len, int repetitions, float32_t* write_buffer, uint8_t* finished)
 {
-	/*
+    /*
 	The radar_request function is called by the api to request radar data from the X4 radar.
 	Once a request is received, the function will set the Novelda parameters
 	*/
+    if (radar_params.state == 0)
+    {
+        printf("Radar not initialized. Please call radar_init first\n");
+        return RADAR_NO_INIT;
+    }
     // want to see if the setting persists from previous call
     printf("prfDiv last: %d\n", radar_params.params.prfDiv);
     radar_params.repetitions = (uint16_t)repetitions;
     radar_params.antenna_num = (uint16_t)antenna_len;
-    radar_params.params.Rstart_m = Rstart_m;
-    radar_params.params.startToStop_m = startToStop_m;
-    radar_params.params.prfDiv = prfDiv;
-    radar_params.params.pps = pps;
-    radar_params.params.fps = fps;
-    radar_params.params.downconversion_enable = downconversion_enable;
     radar_params.antennas = antenna_numbers;
     radar_params.write_buffer = write_buffer;
     radar_params.packet_number = 0;
@@ -120,13 +131,12 @@ int radar_request(int* antenna_numbers, int antenna_len, int repetitions,
     TaskRadarSetAntenna(antenna_numbers[0]);
     printf("Antenna number: %d\n", antenna_numbers[0]);
     radar_params.total_packets = radar_params.repetitions * radar_params.antenna_num;
-    // TODO: configuring fps starts the radar?
     printf("Configuring Dynamic Radar Parameters\n");
-    uint32_t status = RadarConfigDynamicParameters(&radar_params.params);
+    uint32_t status = StartRadar(&radar_params.params);
     if (status != 0)
     {
         printf("Error status: %d\n", status);
-        printf("Failed to get data. Failed to configure radar parameters\n");
+        printf("Failed to start radar\n");
         return FAILED_TO_CONFIGURE_NEW_PARAMETERS;
     }
 
@@ -140,5 +150,36 @@ int radar_request(int* antenna_numbers, int antenna_len, int repetitions,
         printf("Packet %d: %d\n", i, radar_params.packet_iter[i]);
     }
 
+    return 0;
+}
+
+
+int set_request_params(float32_t Rstart_m, float32_t startToStop_m,
+                       uint8_t prfDiv, uint16_t pps, float32_t fps,
+                       uint8_t downconversion_enable, uint32_t* bins)
+{
+	/*
+	The set_request_params is called to initialize the params for the request and to get the number of bins
+	*/
+    if (radar_params.state == 0)
+    {
+        printf("Radar not initialized. Please call radar_init first\n");
+        return RADAR_NO_INIT;
+    }
+    radar_params.params.Rstart_m = Rstart_m;
+    radar_params.params.startToStop_m = startToStop_m;
+    radar_params.params.prfDiv = prfDiv;
+    radar_params.params.pps = pps;
+    radar_params.params.fps = fps;
+    radar_params.params.downconversion_enable = downconversion_enable;
+    printf("Configuring Dynamic Radar Parameters\n");
+    uint32_t status = RadarConfigDynamicParameters(&radar_params.params);
+    if (status != 0)
+    {
+        printf("Error status: %d\n", status);
+        printf("Failed to get data. Failed to configure radar parameters\n");
+        return FAILED_TO_CONFIGURE_NEW_PARAMETERS;
+    }
+    bins = &radar_params.bins;
     return 0;
 }

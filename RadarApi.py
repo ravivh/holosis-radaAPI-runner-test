@@ -165,12 +165,14 @@ class PythonRadarApi:
                             ctypes.c_int, ctypes.c_float, ctypes.c_int,ctypes.c_int]
         self.mylib.radar_init.restype=ctypes.c_int
 
+        self.mylib.set_request_params.argtypes = [ctypes.c_float, ctypes.c_float, ctypes.c_uint8,
+                                                  ctypes.c_uint16, ctypes.c_float, ctypes.c_uint8, 
+                                                  ctypes.POINTER(ctypes.c_uint32)]
+        self.mylib.set_request_params.restype = ctypes.c_int
 
         self.mylib.radar_request.argtypes=[ctypes.POINTER(ctypes.c_int), ctypes.c_int,
                               ctypes.c_int, ctypes.POINTER(ctypes.c_float),
-                              ctypes.c_float, ctypes.c_float, ctypes.c_uint8,
-                              ctypes.c_uint16, ctypes.c_float, ctypes.c_uint8]
-
+                              ctypes.POINTER(ctypes.c_uint8)]
         self.mylib.radar_request.restype=ctypes.c_int
 
         self.mylib.radar_change_parameters.argtypes=[ctypes.c_int, ctypes.c_int, ctypes.c_int,
@@ -270,25 +272,25 @@ class PythonRadarApi:
         """
         IntArray = ctypes.c_int*len(antenna_numbers)
         antenna_ctypes = IntArray(*antenna_numbers)
-        flag = ctypes.c_int(0)
+        flag = ctypes.c_uint8(0)
+        nbins = ctypes.c_uint32(0)
         r_start = r_start + self.r_zero
-        nbins = int(x4_calculate_bin_number(r_start, r_start + start_to_stop, downconversion_enabled))
-        print(nbins)
-        DataFloatArray = ctypes.c_float*(repetitions*nbins*len(antenna_numbers))
-        data_ctypes = DataFloatArray(*[0.0]*(repetitions*nbins*len(antenna_numbers)))
+        self.mylib.set_request_params(r_start, start_to_stop, prf_div, pps, fps, downconversion_enabled, ctypes.byref(nbins))
+        # nbins = int(x4_calculate_bin_number(r_start, r_start + start_to_stop, downconversion_enabled))
+        print('number of bins {}'.format(nbins.value))
+        DataFloatArray = ctypes.c_float*(repetitions*nbins.value*len(antenna_numbers))
+        data_ctypes = DataFloatArray(*[0.0]*(repetitions*nbins.value*len(antenna_numbers)))
         result = self.mylib.radar_request(antenna_ctypes, len(antenna_numbers), repetitions, data_ctypes,
-                    r_start, start_to_stop,
-                    ctypes.c_uint8(prf_div), ctypes.c_uint16(pps), fps,
-                    ctypes.c_uint8(downconversion_enabled), ctypes.byref(flag))
+                                          ctypes.byref(flag))
         
         start = time.time()
-        while(not flag):
+        while(not flag.value):
             if time.time() - start > self.timeout:
                 print("Radar unresponsive")
                 break
             else:
                 continue
-        return result, data_ctypes, nbins
+        return result, data_ctypes, nbins.value
     
     def start(self):
         """
