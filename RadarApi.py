@@ -1,5 +1,6 @@
 import argparse
 import ctypes
+import datetime
 try:
     from flask import Flask, request, jsonify
     flask_flag = 1
@@ -278,8 +279,13 @@ class PythonRadarApi:
         self.mylib.set_request_params(r_start, start_to_stop, prf_div, pps, fps, downconversion_enabled, ctypes.byref(nbins))
         # nbins = int(x4_calculate_bin_number(r_start, r_start + start_to_stop, downconversion_enabled))
         print('number of bins {}'.format(nbins.value))
-        DataFloatArray = ctypes.c_float*(repetitions*nbins.value*len(antenna_numbers))
-        data_ctypes = DataFloatArray(*[0.0]*(repetitions*nbins.value*len(antenna_numbers)))
+        if downconversion_enabled:
+            DataFloatArray = ctypes.c_float*(repetitions*nbins.value*len(antenna_numbers)*2)
+            data_ctypes = DataFloatArray(*[0.0]*(repetitions*nbins.value*len(antenna_numbers)*2))
+        else:
+            DataFloatArray = ctypes.c_float*(repetitions*nbins.value*len(antenna_numbers))
+            data_ctypes = DataFloatArray(*[0.0]*(repetitions*nbins.value*len(antenna_numbers)))
+        start_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         result = self.mylib.radar_request(antenna_ctypes, len(antenna_numbers), repetitions, data_ctypes,
                                           ctypes.byref(flag))
         
@@ -290,7 +296,7 @@ class PythonRadarApi:
                 break
             else:
                 continue
-        return result, data_ctypes, nbins.value
+        return result, data_ctypes, nbins.value, start_time
     
     def start(self):
         """
@@ -306,6 +312,8 @@ class PythonRadarApi:
                     'errors': [],
                     'repetitions': 1,
                     'antenna_number': 1,
+                    'downconversion_enabled': 0,
+                    'timestamp': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                     'command': 'init'
                 } 
                 info = self.request_queue.get()
@@ -345,18 +353,21 @@ class PythonRadarApi:
                 print(result)
                 return_json['status'] = result
                 return_json['command'] = func
+                return_json['timestamp'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         elif func == 'request':
             if None in dynamic_param_names.values():
                 print("Invalid parameters!")
                 append_error(return_json, "Invalid parameters!")
             else:
-                status, data, bins = self.radar_request(**dynamic_param_names)
+                status, data, bins, start_time = self.radar_request(**dynamic_param_names)
                 return_json['status'] = status
                 return_json['data'] = data
                 return_json['nbins'] = bins
+                return_json['downconversion_enabled'] = dynamic_param_names['downconversion_enabled']
                 return_json['repetitions'] = dynamic_param_names['repetitions']
                 return_json['antenna_number'] = len(dynamic_param_names['antenna_numbers'])
                 return_json['command'] = func
+                return_json['timestamp'] = start_time
         elif func == 'change_params':
             if None in init_params.values():
                 print("Invalid parameters!")
@@ -366,6 +377,7 @@ class PythonRadarApi:
                 print(result)
                 return_json['status'] = result
                 return_json['command'] = func
+                return_json['timestamp'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         else:
             print("Invalid command!")
             append_error(return_json, "Invalid command!")
@@ -566,8 +578,17 @@ class RadarSocketCommunication(RadarCommunication):
             nbins = return_data['nbins']
             repetitions = return_data['repetitions']
             antenna_number = return_data['antenna_number']
+            downconversion_enabled = return_data['downconversion_enabled']
             status = return_data['status']
-            packed_data = struct.pack('iiii', status, nbins, repetitions, antenna_number) + ctype_bytes
+            date_str = return_data['timestamp']
+            date_bytes = date_str.encode('utf-8')
+            date_length = len(date_bytes)
+            packed_data = (
+                struct.pack('iiiii', status, nbins, repetitions, antenna_number, downconversion_enabled) + 
+                struct.pack('i', date_length) +
+                date_bytes +
+                ctype_bytes 
+            )
             self.send(packed_data)
         except Exception as e:
             print("Error encoding input json: ", e)

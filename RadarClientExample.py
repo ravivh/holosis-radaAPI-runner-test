@@ -18,7 +18,7 @@ params_change = {
 
 # FPS 10 Respiration
 params_request1 = {
-    'command': 'request', 'antenna_numbers': [56], 'repetitions': 40,
+    'command': 'request', 'antenna_numbers': [56], 'repetitions': 800,
     'r_start': 0.5, 'start_to_stop': 2.5,
     'prf_div': 8, 'pps': 250, 'fps': 10.0, 'downconversion_enabled': 0
 }
@@ -33,7 +33,7 @@ params_request2 = {
 params_request_posture = {
     'command': 'request', 'antenna_numbers': list(range(64)), 'repetitions': 10,
     'r_start': 0.7, 'start_to_stop': 2.5,
-    'prf_div': 16, 'pps': 5, 'fps': 250.0, 'downconversion_enabled': 0
+    'prf_div': 16, 'pps': 5, 'fps': 250.0, 'downconversion_enabled': 1
 }
 
 params_request_motion = {
@@ -66,15 +66,18 @@ def unpack_data(received_data):
     nbins = struct.unpack('i', received_data[4:8])
     repetitions = struct.unpack('i', received_data[8:12])
     antenna_num = struct.unpack('i', received_data[12:16])
-    data = np.frombuffer(received_data[16:], np.float32)
-    return status, nbins[0], repetitions[0], antenna_num[0], data
+    downconversion = struct.unpack('i', received_data[16:20])
+    date_length = struct.unpack('i', received_data[20:24])[0]
+    date_str = received_data[24:24+date_length].decode('utf-8')
+    data = np.frombuffer(received_data[24 + date_length:], np.float32)
+    return status, nbins[0], repetitions[0], antenna_num[0], data, date_str
 
 if __name__ == "__main__":
-    server_ip = '192.168.1.232'
-    # server_ip = '192.168.252.10'
+    #server_ip = '192.168.1.232'
+    server_ip = '192.168.252.12'
     upload_folder = './data'
-    file_name = 'noise_data_posture'
-    
+    file_name = 'posture_data'
+    time.sleep(20)
     client_socket = create_socket()
     client_socket.connect((server_ip, 5044))
     # Only call init once per session!
@@ -84,23 +87,24 @@ if __name__ == "__main__":
         data = json.dumps(params_init)
         client_socket.send(data.encode('utf-8'))
         response = receive_data(client_socket)
-        status, nbins, repetitions, antenna_num, data = unpack_data(response)
+        status, nbins, repetitions, antenna_num, data, date_str = unpack_data(response)
         print("Status: ", status)
 
     if change_params:      
         data = json.dumps(params_change)
         client_socket.send(data.encode('utf-8'))
         response = receive_data(client_socket)
-        status, nbins, repetitions, antenna_num, data = unpack_data(response)
+        status, nbins, repetitions, antenna_num, data, date_str = unpack_data(response)
         print("Status: ", status)
     
-    params_request = params_request_posture
+    params_request = params_request1
     params_to_send = json.dumps(params_request)  
     for i in range(2):
         client_socket.send(params_to_send.encode('utf-8'))
         start = time.time()
         response = receive_data(client_socket)
-        status, nbins, repetitions, antenna_num, data = unpack_data(response)
+        status, nbins, repetitions, antenna_num, data, date_str = unpack_data(response)
+        print("Timestamp of start: ", date_str)
         print("Time to receive data: ", time.time() - start) 
         print("Status: ", status)
         print("Nbins: ", nbins)
@@ -113,7 +117,13 @@ if __name__ == "__main__":
             os.makedirs(folder_path)
         # put file name convention here
         save_file_name = file_name + '_' + datetime.datetime.now().strftime("%H_%M_%S") + '.npy'
-        np.save(os.path.join(folder_path, save_file_name), data.reshape((params_request['repetitions'], len(params_request['antenna_numbers']), nbins)).squeeze())
+        if params_request['downconversion_enabled']:
+            # nbins is the bins not the data size
+            data_complex = data.reshape((params_request['repetitions'], len(params_request['antenna_numbers']), nbins*2)).squeeze()
+            data_complex = data_complex[..., :nbins] + 1j*data_complex[..., nbins:]
+            np.save(os.path.join(folder_path, save_file_name), data_complex)
+        else:
+            np.save(os.path.join(folder_path, save_file_name), data.reshape((params_request['repetitions'], len(params_request['antenna_numbers']), nbins)).squeeze())
         print("done loop ", i)
 
     # TODO - add a specific code to send to server to close the connection
