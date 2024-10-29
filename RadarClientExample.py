@@ -1,10 +1,12 @@
 import datetime
 import json
-import socket
+
 import numpy as np
 import os
 import time
-import struct
+
+from radar_client import RadarSocketClient
+
 
 params_init = {
     'command': 'init', 'frequency': 'US', 'transmit_gain': 'HIGH', 'dac_min': 969, 'dac_max': 1100,
@@ -33,7 +35,7 @@ params_request2 = {
 params_request_posture = {
     'command': 'request', 'antenna_numbers': list(range(64)), 'repetitions': 10,
     'r_start': 0.7, 'start_to_stop': 2.5,
-    'prf_div': 16, 'pps': 5, 'fps': 250.0, 'downconversion_enabled': 1
+    'prf_div': 16, 'pps': 5, 'fps': 250.0, 'downconversion_enabled': 0
 }
 
 params_request_motion = {
@@ -42,74 +44,37 @@ params_request_motion = {
     'prf_div': 10, 'pps': 4, 'fps': 350.0, 'downconversion_enabled': 0
 }
 
-def create_socket():
-    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    client_socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 64*1024)
-    return client_socket
-
-def receive_data(client_socket):
-    data_length = client_socket.recv(4)
-    if not data_length:
-        print("No data received")
-    data_length = int.from_bytes(data_length, byteorder='big')
-    received_data = b''
-    while len(received_data) < data_length:
-        chunk = client_socket.recv(1024*64)
-        if not chunk:
-            print("No data received")
-            break
-        received_data += chunk
-    return received_data
-
-def unpack_data(received_data):
-    status = struct.unpack('i', received_data[:4])
-    nbins = struct.unpack('i', received_data[4:8])
-    repetitions = struct.unpack('i', received_data[8:12])
-    antenna_num = struct.unpack('i', received_data[12:16])
-    downconversion = struct.unpack('i', received_data[16:20])
-    date_length = struct.unpack('i', received_data[20:24])[0]
-    date_str = received_data[24:24+date_length].decode('utf-8')
-    data = np.frombuffer(received_data[24 + date_length:], np.float32)
-    return status, nbins[0], repetitions[0], antenna_num[0], data, date_str
 
 if __name__ == "__main__":
     #server_ip = '192.168.1.232'
     server_ip = '192.168.252.12'
     upload_folder = './data'
     file_name = 'posture_data'
-    time.sleep(20)
-    client_socket = create_socket()
-    client_socket.connect((server_ip, 5044))
+    # time.sleep(20)
+    radar_client = RadarSocketClient(server_ip, 5044)
+    radar_client.connect()
     # Only call init once per session!
     init = True
     change_params = False
     if init:      
-        data = json.dumps(params_init)
-        client_socket.send(data.encode('utf-8'))
-        response = receive_data(client_socket)
-        status, nbins, repetitions, antenna_num, data, date_str = unpack_data(response)
-        print("Status: ", status)
+        output_dict = radar_client.init(params_init)
+        print("Status: ", output_dict['status'])
 
     if change_params:      
-        data = json.dumps(params_change)
-        client_socket.send(data.encode('utf-8'))
-        response = receive_data(client_socket)
-        status, nbins, repetitions, antenna_num, data, date_str = unpack_data(response)
-        print("Status: ", status)
+        response = radar_client.change_params(params_change)
+        print("Status: ", response['status'])
     
-    params_request = params_request1
-    params_to_send = json.dumps(params_request)  
+    params_request = params_request_posture
     for i in range(2):
-        client_socket.send(params_to_send.encode('utf-8'))
+        print("Timestamp of request: ", datetime.datetime.now())
+        data, output_dict = radar_client.request(params_request)
         start = time.time()
-        response = receive_data(client_socket)
-        status, nbins, repetitions, antenna_num, data, date_str = unpack_data(response)
-        print("Timestamp of start: ", date_str)
+        print("Timestamp of start: ", output_dict['timestamp'])
         print("Time to receive data: ", time.time() - start) 
-        print("Status: ", status)
-        print("Nbins: ", nbins)
-        print("Repetitions: ", repetitions)
-        print("Antenna Number: ", antenna_num)
+        print("Status: ", output_dict['status'])
+        print("Nbins: ", output_dict['nbins'])
+        print("Repetitions: ", output_dict['repetitions'])
+        print("Antenna Number: ", output_dict['antenna_num'])
         if not os.path.exists(upload_folder):
             os.makedirs(upload_folder)
         folder_path = os.path.join(upload_folder, datetime.datetime.now().strftime("%Y_%m_%d"))
@@ -117,14 +82,6 @@ if __name__ == "__main__":
             os.makedirs(folder_path)
         # put file name convention here
         save_file_name = file_name + '_' + datetime.datetime.now().strftime("%H_%M_%S") + '.npy'
-        if params_request['downconversion_enabled']:
-            # nbins is the bins not the data size
-            data_complex = data.reshape((params_request['repetitions'], len(params_request['antenna_numbers']), nbins*2)).squeeze()
-            data_complex = data_complex[..., :nbins] + 1j*data_complex[..., nbins:]
-            np.save(os.path.join(folder_path, save_file_name), data_complex)
-        else:
-            np.save(os.path.join(folder_path, save_file_name), data.reshape((params_request['repetitions'], len(params_request['antenna_numbers']), nbins)).squeeze())
-        print("done loop ", i)
-
-    # TODO - add a specific code to send to server to close the connection
-    client_socket.close()
+        print(data.shape)
+        
+    radar_client.disconnect()
