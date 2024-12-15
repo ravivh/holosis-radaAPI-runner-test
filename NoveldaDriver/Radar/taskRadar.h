@@ -30,7 +30,7 @@ typedef struct RadarApiParams
 	// overall packet number
 	uint16_t packet_number;
 	// debug - packet numbers
-	uint16_t packet_iter[8000];
+	uint16_t packet_iter[50000];
     uint32_t total_packets;
     // antenna loop index
     uint16_t antenna_index;
@@ -45,8 +45,15 @@ typedef struct RadarApiParams
 	// bins - here it varies based on start/stop - probably should calculate it in python to allocate
 	// the correct number of bins
 	uint32_t bins;
+	// chunk size
+	uint32_t chunk_size;
+	uint32_t chunk_index;
+	// current chunk count
+	uint32_t current_chunk_count;
     // signals that data is done
     uint8_t *frameReady;
+    // signals that all frames are ready
+    uint8_t all_frames_ready;
 }RadarApiParams;
 
 

@@ -3,6 +3,41 @@ import select
 import socket
 import json
 import struct
+from queue import Queue
+from threading import Event
+import threading
+
+class ChunkDispatcher:
+    def __init__(self):
+        self.chunks = {}  # Dictionary to store chunks by index
+        self.chunk_events = {}  # Events to signal chunk availability
+        self.lock = threading.Lock()
+
+    def set_chunk(self, chunk_index: int, chunk_data, metadata: dict):
+        """Called by generator when new chunk arrives"""
+        with self.lock:
+            self.chunks[chunk_index] = (chunk_data, metadata)
+            # Create and set event if someone is waiting for this chunk
+            if chunk_index in self.chunk_events:
+                self.chunk_events[chunk_index].set()
+
+    def wait_for_chunk(self, chunk_index: int, timeout=None):
+        """Called by consumer threads to wait for specific chunks"""
+        with self.lock:
+            # If chunk already received, return it immediately
+            if chunk_index in self.chunks:
+                return self.chunks[chunk_index]
+            
+            # Create event to wait for this chunk
+            if chunk_index not in self.chunk_events:
+                self.chunk_events[chunk_index] = Event()
+        
+        # Wait for chunk to arrive
+        if self.chunk_events[chunk_index].wait(timeout):
+            return self.chunks[chunk_index]
+        else:
+            raise TimeoutError(f"Timeout waiting for chunk {chunk_index}")
+
 
 class RadarSocketClient:
 
@@ -66,29 +101,96 @@ class RadarSocketClient:
             print("Buffer has been cleared")
 
     @staticmethod
-    def build_output(status: int, nbins: int, repetitions: int, antenna_num: int, date_str:str) -> dict:
+    def build_output(status: int, nbins: int, repetitions: int, antenna_number: int, timestamp:str, chunk_index: int, total_chunks: int, downconversion_enabled: bool, errors: str = None, **kwargs) -> dict:
         """
         Utility to build the output dictionary
         Inputs:
 
         """
-        output_dict = dict(status=status, nbins=nbins, repetitions=repetitions,
-                            antenna_num=antenna_num, timestamp=date_str)
+        output_dict = dict(status=status, nbins=nbins, repetitions=repetitions, chunk_index=chunk_index, total_chunks=total_chunks,
+                            antenna_number=antenna_number, timestamp=timestamp, errors=errors, downconversion_enabled=downconversion_enabled)
         return output_dict
 
     def request(self, params: dict) -> dict:
         """
-        Initiates a request to the radar
+        Initiates a request to the radar. All data is returned at end of request
         Inputs:
             params(dict): The parameters for radar request
         """
         data = json.dumps(params)
         self.client_socket.send(data.encode('utf-8'))
-        response = receive_data(self.client_socket)
-        # TODO: add command and errors to socket
-        status, nbins, repetitions, antenna_num, data, date_str = unpack_data(response)
-        output_dict = self.build_output(status, nbins, repetitions, antenna_num, date_str)
+        all_data = []
+        metadata = None
+        while True:
+            metadata_bytes = receive_data(self.client_socket)
+            chunk_metadata = json.loads(metadata_bytes.decode('utf-8'))
+            if metadata is None:
+                metadata = chunk_metadata
+            else:
+                metadata['chunk_index'] = chunk_metadata['chunk_index']
+            
+            chunk = receive_data(self.client_socket)
+            chunk_data = np.frombuffer(chunk, dtype=np.float32)
+            all_data.append((metadata['chunk_index'], chunk_data))
+
+            if metadata['total_chunks'] == metadata['chunk_index'] + 1:
+                break
+        
+        sorted_data = sorted(all_data, key=lambda x: x[0])
+        data = np.concatenate([item[1] for item in sorted_data])
+        if metadata['downconversion_enabled']:
+            data = data.reshape(-1, metadata['antenna_number'], 2*metadata['nbins']).squeeze()
+            data = data[:, :, :metadata['nbins']] + 1j * data[:, :, metadata['nbins']:]
+        else:
+
+            data = data.reshape(-1, metadata['antenna_number'], metadata['nbins']).squeeze()
+
+        output_dict = self.build_output(**metadata, data=data)
         return data, output_dict
+
+    def request_with_dispatcher(self, params: dict) -> ChunkDispatcher:
+        """
+        Returns a dispatcher that can be used to wait for specific chunks
+        """
+        dispatcher = ChunkDispatcher()
+        
+        # Start generator in separate thread
+        def generator_thread():
+            for chunk_data, metadata in self.request_generator(params):
+                print(f"Received chunk {metadata['chunk_index']} for dispatch")
+                dispatcher.set_chunk(metadata['chunk_index'], chunk_data, metadata)
+        
+        thread = threading.Thread(target=generator_thread)
+        thread.daemon = True
+        thread.start()
+        
+        return dispatcher
+
+    def request_generator(self, params: dict):
+        """
+        Generator that yields chunks as they arrive
+
+        """
+        data = json.dumps(params)
+        self.client_socket.send(data.encode('utf-8'))
+        
+        while True:
+            metadata_bytes = receive_data(self.client_socket)
+            metadata = json.loads(metadata_bytes.decode('utf-8'))
+            
+            chunk = receive_data(self.client_socket)
+            chunk_data = np.frombuffer(chunk, dtype=np.float32)
+            
+            if metadata['downconversion_enabled']:
+                shaped_data = chunk_data.reshape(-1, metadata['antenna_number'], 2*metadata['nbins']).squeeze()
+                shaped_data = shaped_data[:, :, :metadata['nbins']] + 1j * shaped_data[:, :, metadata['nbins']:]
+            else:
+                shaped_data = chunk_data.reshape(-1, metadata['antenna_number'], metadata['nbins']).squeeze()
+            
+            yield shaped_data, metadata
+            
+            if metadata['total_chunks'] == metadata['chunk_index'] + 1:
+                break
 
 def create_socket():
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -101,12 +203,14 @@ def receive_data(client_socket):
         print("No data received")
     data_length = int.from_bytes(data_length, byteorder='big')
     received_data = b''
-    while len(received_data) < data_length:
-        chunk = client_socket.recv(1024*64)
+    remaining_length = data_length
+    while remaining_length > 0:
+        chunk = client_socket.recv(min(remaining_length, 1024*64))
         if not chunk:
             print("No data received")
             break
         received_data += chunk
+        remaining_length -= len(chunk)
     return received_data
 
 def unpack_data(received_data):

@@ -81,7 +81,7 @@ void x4driver_data_ready(void)
 //   static int ronenDebug = 0 ;
 
     //printf("callback reached !\n");
-
+    x4driver_get_frame_bin_count(x4driver, &bin_count);
     x4driver_get_downconversion(x4driver, &down_conversion_enabled);
     if( once == 0 )
     {
@@ -123,7 +123,8 @@ void x4driver_data_ready(void)
     // as in if you get an additional callback after the radar is stopped it could be invalid data you
     // need to handle
     // printf("fdata count %d\n", fdata_count);
-    
+    // TODO - what should I do if it fails here? need to return something at least
+    // also should it be <= or <?
     if( radar_params.packet_number <= radar_params.total_packets )
     {
         status = x4driver_read_frame_normalized( x4driver, &frame_counter, radar_params.write_buffer + frame_index*fdata_count, fdata_count );
@@ -143,8 +144,29 @@ void x4driver_data_ready(void)
             printf("Error code=%d\n", status);
         }
     }
-    if( radar_params.packet_number >= radar_params.total_packets )
-        *radar_params.frameReady = 1 ;
+    if (status == XEP_ERROR_X4DRIVER_OK)
+    {
+        // if 0 send all at end
+        if (radar_params.chunk_size > 0){
+            radar_params.current_chunk_count++;
+            // send either when the chunk size is reached or when the packet number is the last one
+            if (radar_params.current_chunk_count >= radar_params.chunk_size || radar_params.packet_number >= radar_params.total_packets){
+                *radar_params.frameReady = 1 ;
+                radar_params.current_chunk_count = 0;
+                printf("return chunk radar_params.current_chunk_index: %d\n", radar_params.chunk_index);
+                radar_params.chunk_index++;
+            }
+        }
+        else if( radar_params.packet_number >= radar_params.total_packets )
+        {
+            *radar_params.frameReady = 1 ;
+            printf("All frames done - sending all frames\n");
+        }
+
+        if(radar_params.packet_number >= radar_params.total_packets){
+            radar_params.all_frames_ready = 1;
+        }
+    }
 }
 
 static uint32_t x4driver_callback_take_sem(void *sem, uint32_t timeout)

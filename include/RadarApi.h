@@ -34,7 +34,7 @@ int radar_change_parameters(int novelda_freq, int transmit_gain, int dacMin,
 
 int set_request_params(float32_t Rstart_m, float32_t startToStop_m,
                        uint8_t prfDiv, uint16_t pps, float32_t fps,
-                       uint8_t downconversion_enable, uint32_t* bins);
+                       uint8_t downconversion_enable, uint32_t* bins, uint32_t chunk_size);
 }
 #endif
 

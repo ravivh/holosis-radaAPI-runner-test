@@ -143,9 +143,10 @@ class PythonRadarApi:
 
     
     init_param_names = ['frequency', 'transmit_gain', 'dac_min', 'dac_max', 'tzero_ns', 'iterations']
-    dynamic_param_names = ['antenna_numbers', 'repetitions', 'r_start', 'start_to_stop', 'prf_div', 'pps', 'fps', 'downconversion_enabled']
+    dynamic_param_names = ['antenna_numbers', 'repetitions', 'r_start', 'start_to_stop', 'prf_div', 'pps', 'fps', 'downconversion_enabled',
+                           'chunk_size']
 
-    def __init__(self, timeout: int=100, so_path: str="./libRadarApi.so", debug: int=0,
+    def __init__(self, timeout: int=120, so_path: str="./libRadarApi.so", debug: int=0,
                  queue_size: int=0):
         """
         Class for the radar api in python. Uses ctypes to call the c functions
@@ -168,7 +169,7 @@ class PythonRadarApi:
 
         self.mylib.set_request_params.argtypes = [ctypes.c_float, ctypes.c_float, ctypes.c_uint8,
                                                   ctypes.c_uint16, ctypes.c_float, ctypes.c_uint8, 
-                                                  ctypes.POINTER(ctypes.c_uint32)]
+                                                  ctypes.POINTER(ctypes.c_uint32), ctypes.c_uint32]
         self.mylib.set_request_params.restype = ctypes.c_int
 
         self.mylib.radar_request.argtypes=[ctypes.POINTER(ctypes.c_int), ctypes.c_int,
@@ -247,8 +248,8 @@ class PythonRadarApi:
         return result
 
 
-    def radar_request(self, antenna_numbers: list, repetitions: int, r_start: float, start_to_stop: float,
-                      prf_div: int, pps: int, fps: float, downconversion_enabled: int) -> (int, ctypes.c_float):
+    def radar_request(self, callback: Callable, antenna_numbers: list, repetitions: int, r_start: float, start_to_stop: float,
+                      prf_div: int, pps: int, fps: float, downconversion_enabled: int, chunk_size: int) -> (int, ctypes.c_float):
         """
         Request data from the radar with the given parameters. 
         The data acquisition is defined by the parameters and the antenna numbers.
@@ -267,6 +268,7 @@ class PythonRadarApi:
             pps(int) - pps
             fps(float) - fps
             downconversion_enabled(int) - 1 if downconversion is enabled, 0 otherwise
+            chunk_size(int) - size of the chunk to be sent to the client. If 0, the radar will send all data at once
         Outputs:
             flag(int) - flag indicating the status of the radar request
             data_ctypes(ctypes.c_float) - data from the radar
@@ -276,27 +278,64 @@ class PythonRadarApi:
         flag = ctypes.c_uint8(0)
         nbins = ctypes.c_uint32(0)
         r_start = r_start + self.r_zero
-        self.mylib.set_request_params(r_start, start_to_stop, prf_div, pps, fps, downconversion_enabled, ctypes.byref(nbins))
+        errors = ''
+        result = self.mylib.set_request_params(r_start, start_to_stop, prf_div, pps, fps, downconversion_enabled, ctypes.byref(nbins),
+                                      ctypes.c_uint32(chunk_size))
         # nbins = int(x4_calculate_bin_number(r_start, r_start + start_to_stop, downconversion_enabled))
         print('number of bins {}'.format(nbins.value))
         if downconversion_enabled:
             DataFloatArray = ctypes.c_float*(repetitions*nbins.value*len(antenna_numbers)*2)
             data_ctypes = DataFloatArray(*[0.0]*(repetitions*nbins.value*len(antenna_numbers)*2))
+            total_size = repetitions*nbins.value*len(antenna_numbers)*2
         else:
             DataFloatArray = ctypes.c_float*(repetitions*nbins.value*len(antenna_numbers))
             data_ctypes = DataFloatArray(*[0.0]*(repetitions*nbins.value*len(antenna_numbers)))
+            total_size = repetitions*nbins.value*len(antenna_numbers)
         start_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        print('total size {}'.format(total_size))
+        chunk_index = 0
+        if chunk_size == 0:
+            chunk_size = repetitions*len(antenna_numbers)
         result = self.mylib.radar_request(antenna_ctypes, len(antenna_numbers), repetitions, data_ctypes,
                                           ctypes.byref(flag))
-        
-        start = time.time()
-        while(not flag.value):
-            if time.time() - start > self.timeout:
-                print("Radar unresponsive")
-                break
-            else:
-                continue
-        return result, data_ctypes, nbins.value, start_time
+
+        while chunk_index*chunk_size < repetitions*len(antenna_numbers):
+            start = time.time()
+            while(not flag.value):
+                if time.time() - start > self.timeout:
+                    print("Radar unresponsive")
+                    result = -1
+                    errors = "Radar unresponsive"
+                    break
+                else:
+                    continue
+
+            if result != 0:
+                errors = "Radar request failed - check result code for more information"
+            
+            start_idx = chunk_index * chunk_size * nbins.value
+            end_idx = min((chunk_index + 1) * chunk_size * nbins.value, 
+                         total_size)
+            chunk_data = data_ctypes[start_idx:end_idx]
+            return_data = {
+                'status': result,
+                'data': chunk_data,
+                'nbins': nbins.value,
+                'repetitions': repetitions,
+                'antenna_number': len(antenna_numbers),
+                'downconversion_enabled': downconversion_enabled,
+                'timestamp': start_time,
+                'chunk_index': chunk_index,
+                'total_chunks': math.ceil(repetitions*len(antenna_numbers) / chunk_size),
+                'command': 'request',
+                'errors': errors
+            }
+            print("Returning chunk {}".format(chunk_index))
+            callback(return_data)
+            flag.value = 0
+            chunk_index += 1
+        print('All chunks received!!')
+        return result
     
     def start(self):
         """
@@ -314,6 +353,8 @@ class PythonRadarApi:
                     'antenna_number': 1,
                     'downconversion_enabled': 0,
                     'timestamp': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    'chunk_index': 0,
+                    'total_chunks': 1,
                     'command': 'init'
                 } 
                 info = self.request_queue.get()
@@ -354,20 +395,17 @@ class PythonRadarApi:
                 return_json['status'] = result
                 return_json['command'] = func
                 return_json['timestamp'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            callback(return_json)
         elif func == 'request':
+            if dynamic_param_names['chunk_size'] is None:
+                dynamic_param_names['chunk_size'] = 0
             if None in dynamic_param_names.values():
                 print("Invalid parameters!")
                 append_error(return_json, "Invalid parameters!")
+                callback(return_json)
             else:
-                status, data, bins, start_time = self.radar_request(**dynamic_param_names)
-                return_json['status'] = status
-                return_json['data'] = data
-                return_json['nbins'] = bins
-                return_json['downconversion_enabled'] = dynamic_param_names['downconversion_enabled']
-                return_json['repetitions'] = dynamic_param_names['repetitions']
-                return_json['antenna_number'] = len(dynamic_param_names['antenna_numbers'])
-                return_json['command'] = func
-                return_json['timestamp'] = start_time
+                # here the callback is called with the return_json
+                status = self.radar_request(callback, **dynamic_param_names)
         elif func == 'change_params':
             if None in init_params.values():
                 print("Invalid parameters!")
@@ -378,10 +416,11 @@ class PythonRadarApi:
                 return_json['status'] = result
                 return_json['command'] = func
                 return_json['timestamp'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            callback(return_json)
         else:
             print("Invalid command!")
             append_error(return_json, "Invalid command!")
-        callback(return_json)
+            callback(return_json)
 
     def register_request(self, data, callback):
         """
@@ -505,8 +544,6 @@ class RadarSocketCommunication(RadarCommunication):
         """
         Loop to receive the client requests and pass it to the api class
         """
-        # TODO - if the client doesn't close properly, it can send empty data for a period. Not a huge deal since the Json won't be parsed
-        # properly and the exception is handled, but may want to add a condition to exit upon receiving empty data
         while self.client_socket is not None:
             try:                
                 data = self.client_socket.recv(1024).decode('utf-8')
@@ -574,22 +611,31 @@ class RadarSocketCommunication(RadarCommunication):
         """
         try:
             data = return_data['data']
-            ctype_bytes = bytes(data)
-            nbins = return_data['nbins']
-            repetitions = return_data['repetitions']
-            antenna_number = return_data['antenna_number']
-            downconversion_enabled = return_data['downconversion_enabled']
-            status = return_data['status']
-            date_str = return_data['timestamp']
-            date_bytes = date_str.encode('utf-8')
-            date_length = len(date_bytes)
-            packed_data = (
-                struct.pack('iiiii', status, nbins, repetitions, antenna_number, downconversion_enabled) + 
-                struct.pack('i', date_length) +
-                date_bytes +
-                ctype_bytes 
-            )
-            self.send(packed_data)
+            # Convert the ctypes float array to bytes
+            ctype_bytes = b''
+            for value in data:
+                # Pack each float into 4 bytes using struct
+                ctype_bytes += struct.pack('f', value)
+            
+            metadata = {
+                'status': return_data['status'],
+                'nbins': return_data['nbins'],
+                'repetitions': return_data['repetitions'],
+                'antenna_number': return_data['antenna_number'],
+                'downconversion_enabled': return_data['downconversion_enabled'],
+                'timestamp': return_data['timestamp'],
+                'chunk_index': return_data['chunk_index'],
+                'total_chunks': return_data['total_chunks']
+            }
+            metadata_bytes = json.dumps(metadata).encode('utf-8')
+            self.client_socket.sendall(len(metadata_bytes).to_bytes(4, 'big'))
+            self.client_socket.sendall(metadata_bytes)
+            time.sleep(0.001)
+            
+            # Send chunk data
+            self.client_socket.sendall(len(ctype_bytes).to_bytes(4, 'big'))
+            self.client_socket.sendall(ctype_bytes)
+
         except Exception as e:
             print("Error encoding input json: ", e)
     
@@ -688,8 +734,24 @@ class RadarFlaskCommunication(RadarCommunication):
         try:
             print(return_data)
             data = return_data.pop('data')
-            ctype_bytes = bytes(data)
-            self.send(ctype_bytes, return_data)
+            # Convert the ctypes float array to bytes
+            ctype_bytes = b''
+            for value in data:
+                # Pack each float into 4 bytes using struct
+                ctype_bytes += struct.pack('f', value)
+            
+            metadata = {
+                'status': return_data['status'],
+                'nbins': return_data['nbins'],
+                'repetitions': return_data['repetitions'],
+                'antenna_number': return_data['antenna_number'],
+                'downconversion_enabled': return_data['downconversion_enabled'],
+                'timestamp': return_data['timestamp'],
+                'chunk_index': return_data['chunk_index'],
+                'total_chunks': return_data['total_chunks']
+            }
+            metadata_bytes = json.dumps(metadata).encode('utf-8')
+            self.send(metadata_bytes, ctype_bytes)
         except Exception as e:
             print("Error encoding input json: ", e)
 

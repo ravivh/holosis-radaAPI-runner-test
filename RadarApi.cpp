@@ -128,6 +128,7 @@ int radar_request(int* antenna_numbers, int antenna_len, int repetitions, float3
     radar_params.packet_number = 0;
     radar_params.antenna_index = 0;
     radar_params.frameReady = finished;
+    radar_params.all_frames_ready = 0;
     TaskRadarSetAntenna(antenna_numbers[0]);
     printf("Antenna number: %d\n", antenna_numbers[0]);
     radar_params.total_packets = radar_params.repetitions * radar_params.antenna_num;
@@ -139,24 +140,13 @@ int radar_request(int* antenna_numbers, int antenna_len, int repetitions, float3
         printf("Failed to start radar\n");
         return FAILED_TO_CONFIGURE_NEW_PARAMETERS;
     }
-
-    while(*radar_params.frameReady == 0)
-    {
-        // wait for data to be ready
-    }
-    
-    for(int i=0; i < radar_params.total_packets; i++)
-    {
-        printf("Packet %d: %d\n", i, radar_params.packet_iter[i]);
-    }
-
     return 0;
 }
 
 
 int set_request_params(float32_t Rstart_m, float32_t startToStop_m,
                        uint8_t prfDiv, uint16_t pps, float32_t fps,
-                       uint8_t downconversion_enable, uint32_t* bins)
+                       uint8_t downconversion_enable, uint32_t* bins, uint32_t chunk_size)
 {
 	/*
 	The set_request_params is called to initialize the params for the request and to get the number of bins
@@ -171,6 +161,10 @@ int set_request_params(float32_t Rstart_m, float32_t startToStop_m,
     radar_params.params.prfDiv = prfDiv;
     radar_params.params.pps = pps;
     radar_params.params.fps = fps;
+    radar_params.chunk_size = chunk_size;
+    printf("chunk_size in c: %u\n", radar_params.chunk_size);
+    radar_params.current_chunk_count = 0;
+    radar_params.chunk_index = 0;
     radar_params.params.downconversion_enable = downconversion_enable;
     printf("Configuring Dynamic Radar Parameters\n");
     uint32_t status = RadarConfigDynamicParameters(&radar_params.params);
@@ -179,7 +173,9 @@ int set_request_params(float32_t Rstart_m, float32_t startToStop_m,
         printf("Error status: %d\n", status);
         printf("Failed to get data. Failed to configure radar parameters\n");
         return FAILED_TO_CONFIGURE_NEW_PARAMETERS;
-    }
-    bins = &radar_params.bins;
+    }  
+    printf("bins value in c before assignment: %u\n", *bins);
+    *bins = radar_params.bins;
+    printf("bins value in c: %u\n", *bins);
     return 0;
 }
