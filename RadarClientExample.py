@@ -22,9 +22,9 @@ params_change = {
 
 # FPS 10 Respiration
 params_request1 = {
-    'command': 'request', 'antenna_numbers': [56], 'repetitions': 600,
-    'r_start': 0.3, 'start_to_stop': 2.5,
-    'prf_div': 8, 'pps': 35, 'fps': 70.0, 'downconversion_enabled': 0, 'chunk_size': 40
+    'command': 'request', 'antenna_numbers': [56], 'repetitions': 15000,
+    'r_start': 0.7, 'start_to_stop': 2.5,
+    'prf_div': 8, 'pps': 7, 'fps': 350.0, 'downconversion_enabled': 0, 'chunk_size': 3000
 }
 
 # FPS 70 Respiration
@@ -65,9 +65,9 @@ def process_specific_chunk(dispatcher, chunk_index, timeout=60):
 
 
 if __name__ == "__main__":
-    server_ip = '192.168.1.235'
+    server_ip = '192.168.1.232'
     #server_ip = '10.0.0.19'
-    upload_folder = '/Users/leokatz/Documents/Heart Rate/data/'
+    upload_folder = '/Users/leokatz/Documents/RadarApi/data/'
     file_name = 'test_data'
     # time.sleep(20)
     radar_client = RadarSocketClient(server_ip, 5044)
@@ -148,7 +148,7 @@ if __name__ == "__main__":
                 os.makedirs(folder_path)
             
             save_file_name = file_name + '_' + datetime.datetime.now().strftime("%H_%M_%S") + '.npy'
-            # np.save(os.path.join(folder_path, save_file_name), combined_data)
+            np.save(os.path.join(folder_path, save_file_name), combined_data)
             
             print(f"Saved combined data with shape: {combined_data.shape}")
             print(f"Total chunks processed: {len(all_chunks)}")

@@ -397,6 +397,7 @@ class PythonRadarApi:
                 return_json['timestamp'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             callback(return_json)
         elif func == 'request':
+            # allow chunk size to not be specified - defaults to all data
             if dynamic_param_names['chunk_size'] is None:
                 dynamic_param_names['chunk_size'] = 0
             if None in dynamic_param_names.values():
@@ -612,10 +613,7 @@ class RadarSocketCommunication(RadarCommunication):
         try:
             data = return_data['data']
             # Convert the ctypes float array to bytes
-            ctype_bytes = b''
-            for value in data:
-                # Pack each float into 4 bytes using struct
-                ctype_bytes += struct.pack('f', value)
+            ctype_bytes = struct.pack(str(len(data)) + 'f', *data)
             
             metadata = {
                 'status': return_data['status'],

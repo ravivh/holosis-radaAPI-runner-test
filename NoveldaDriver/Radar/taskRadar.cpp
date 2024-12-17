@@ -96,7 +96,6 @@ void x4driver_data_ready(void)
     }
    
     uint32_t frame_index = radar_params.packet_number;
-    radar_params.packet_iter[radar_params.packet_number] = radar_params.packet_number;
 // TODO: should data be read before stopping radar? Is there a way to flush the buffer
 // need to understand when the interrupt is raised and what the implications are of stopping the radar
     if( radar_params.packet_number++ >= radar_params.total_packets - 1)

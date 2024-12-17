@@ -30,7 +30,6 @@ typedef struct RadarApiParams
 	// overall packet number
 	uint16_t packet_number;
 	// debug - packet numbers
-	uint16_t packet_iter[50000];
     uint32_t total_packets;
     // antenna loop index
     uint16_t antenna_index;

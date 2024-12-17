@@ -1,7 +1,5 @@
 import unittest
 import os
-import math
-import matplotlib.pyplot as plt
 import numpy as np
 
 class APITestCase(unittest.TestCase):
