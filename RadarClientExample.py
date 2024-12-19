@@ -47,7 +47,7 @@ params_request_motion = {
 }
 
 
-def process_specific_chunk(dispatcher, chunk_index, timeout=60):
+def process_specific_chunk(dispatcher, chunk_index, timeout=120):
     """
     Demo for function that can be run in separate threads to process specific chunks
     """
@@ -75,6 +75,7 @@ if __name__ == "__main__":
     # Only call init once per session!
     init = True
     change_params = False
+    stop_radar = False
     if init:      
         output_dict = radar_client.init(params_init)
         print("Status: ", output_dict['status'])
@@ -124,8 +125,11 @@ if __name__ == "__main__":
             }
             
             # Wait for all tasks to complete
-            for future in futures:
+            for i, future in enumerate(futures):
                 chunk_index = futures[future]
+                if i == 2 and stop_radar:
+                    radar_client.stop()
+                    break
                 try:
                     chunk_data, metadata = future.result()
                     if chunk_data is not None:
@@ -148,7 +152,7 @@ if __name__ == "__main__":
                 os.makedirs(folder_path)
             
             save_file_name = file_name + '_' + datetime.datetime.now().strftime("%H_%M_%S") + '.npy'
-            np.save(os.path.join(folder_path, save_file_name), combined_data)
+            # np.save(os.path.join(folder_path, save_file_name), combined_data)
             
             print(f"Saved combined data with shape: {combined_data.shape}")
             print(f"Total chunks processed: {len(all_chunks)}")

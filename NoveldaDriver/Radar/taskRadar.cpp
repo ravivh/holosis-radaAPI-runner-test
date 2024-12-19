@@ -98,8 +98,12 @@ void x4driver_data_ready(void)
     uint32_t frame_index = radar_params.packet_number;
 // TODO: should data be read before stopping radar? Is there a way to flush the buffer
 // need to understand when the interrupt is raised and what the implications are of stopping the radar
-    if( radar_params.packet_number++ >= radar_params.total_packets - 1)
+    if( radar_params.packet_number++ >= radar_params.total_packets - 1 || radar_params.stop_radar_flag == 1 )
+    {
     	StopRadar();
+        printf("Stopping radar\n");
+        radar_params.stop_radar_flag = 0;
+    }
     else
     {
         if( radar_params.antenna_num > 1 )
@@ -126,6 +130,8 @@ void x4driver_data_ready(void)
     // also should it be <= or <?
     if( radar_params.packet_number <= radar_params.total_packets )
     {
+        // for DEBUG
+        // printf("Reading frame %d\n", frame_index);
         status = x4driver_read_frame_normalized( x4driver, &frame_counter, radar_params.write_buffer + frame_index*fdata_count, fdata_count );
         if (status != XEP_ERROR_X4DRIVER_OK)
         {
@@ -135,7 +141,7 @@ void x4driver_data_ready(void)
     }
     else
     {
-        //printf("Reached an extra call past end of data!\n");
+        printf("Reached an extra call past end of data!\n");
         status = x4driver_read_frame_normalized( x4driver, &frame_counter, garbage_buffer, fdata_count );
         if (status != XEP_ERROR_X4DRIVER_OK)
         {
@@ -579,7 +585,7 @@ uint8_t RadarChangeRange( float Rstart )
 // and official way to do it?
 uint32_t StopRadar()
 {
-    uint32_t status = x4driver_set_fps(x4driver, 0); // Generate 5 frames per second
+    uint32_t status = x4driver_set_fps(x4driver, 0);
     if (status != XEP_ERROR_X4DRIVER_OK)
     {
 #ifdef DEBUG

@@ -108,6 +108,14 @@ int radar_change_parameters(int novelda_freq, int transmit_gain, int dacMin,
     return 0;
 }
 
+int stop_radar()
+{
+    radar_params.stop_radar_flag = 1;
+    while(radar_params.stop_radar_flag == 1)
+        continue;
+    return 0;
+}
+
 int radar_request(int* antenna_numbers, int antenna_len, int repetitions, float32_t* write_buffer, uint8_t* finished)
 {
     /*
@@ -129,6 +137,7 @@ int radar_request(int* antenna_numbers, int antenna_len, int repetitions, float3
     radar_params.antenna_index = 0;
     radar_params.frameReady = finished;
     radar_params.all_frames_ready = 0;
+    radar_params.stop_radar_flag = 0;
     TaskRadarSetAntenna(antenna_numbers[0]);
     printf("Antenna number: %d\n", antenna_numbers[0]);
     radar_params.total_packets = radar_params.repetitions * radar_params.antenna_num;

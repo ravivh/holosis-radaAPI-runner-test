@@ -25,6 +25,7 @@ typedef struct RadarApiParams
 {
 	// Do I need this?
 	uint8_t data_type;
+	uint8_t stop_radar_flag;
     // TODO: what if it is downconverted?
 	float32_t* write_buffer;
 	// overall packet number

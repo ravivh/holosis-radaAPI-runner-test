@@ -180,6 +180,9 @@ class PythonRadarApi:
         self.mylib.radar_change_parameters.argtypes=[ctypes.c_int, ctypes.c_int, ctypes.c_int,
                                                     ctypes.c_int, ctypes.c_float, ctypes.c_int]
         self.mylib.radar_change_parameters.restype=ctypes.c_int
+
+        self.mylib.stop_radar.argtypes = []
+        self.mylib.stop_radar.restype = ctypes.c_int
         
         self.debug = 0
         self.request_queue = queue.Queue(maxsize=queue_size)
@@ -190,6 +193,7 @@ class PythonRadarApi:
         self.dac_max = None
         self.tzero_ns = None
         self.iterations = None
+        self.stop_flag = threading.Event()
 
     def initial_setup(self, frequency: str, transmit_gain: str, dac_min: int, dac_max: int,
                       tzero_ns: float, iterations:int) -> int:
@@ -302,16 +306,35 @@ class PythonRadarApi:
         while chunk_index*chunk_size < repetitions*len(antenna_numbers):
             start = time.time()
             while(not flag.value):
+                if self.stop_flag.is_set():
+                    print("Request interrupted by stop command")
+                    total_chunks = math.ceil(repetitions*len(antenna_numbers) / chunk_size)
+                    return_data = {
+                        'status': -1,
+                        'data': (ctypes.c_float*1)(0.0),
+                        'nbins': 1,
+                        'errors': ["Request interrupted by stop command"],
+                        'repetitions': 1,
+                        'antenna_number': 1,
+                        'downconversion_enabled': 0,
+                        'timestamp': start_time,
+                        'chunk_index': total_chunks - 1,
+                        'total_chunks': total_chunks,
+                        'command': 'request',
+                    }
+                    callback(return_data)
+                    return -1
+                               
                 if time.time() - start > self.timeout:
                     print("Radar unresponsive")
                     result = -1
                     errors = "Radar unresponsive"
-                    break
-                else:
-                    continue
-
+                    return -1
+                time.sleep(0.01)
+                continue
+            
             if result != 0:
-                errors = "Radar request failed - check result code for more information"
+                errors = ["Radar request failed - check result code for more information"]
             
             start_idx = chunk_index * chunk_size * nbins.value
             end_idx = min((chunk_index + 1) * chunk_size * nbins.value, 
@@ -369,6 +392,43 @@ class PythonRadarApi:
                     self.request_queue.task_done()
             time.sleep(0.01)
     
+    def stop_radar(self, info: dict):
+        """Stop the radar and clear all pending requests"""
+        # Stop the radar hardware
+        result = self.mylib.stop_radar()
+        # end the current request
+        self.stop_flag.set()
+        return_json = {
+            'status': -1,
+            'data': (ctypes.c_float*1)(0.0),
+            'nbins': 1,
+            'errors': [],
+            'repetitions': 1,
+            'antenna_number': 1,
+            'downconversion_enabled': 0,
+            'timestamp': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            'chunk_index': 0,
+            'total_chunks': 1,
+            'command': 'stop'
+        } 
+
+        # Clear the request queue
+        while not self.request_queue.empty():
+            try:
+                info = self.request_queue.get_nowait()
+                # Send stop notification to waiting callbacks
+                
+                # TODO: not sure I want to return for each of them
+                # info['callback'](return_json)
+                self.request_queue.task_done()
+            except queue.Empty:
+                break
+        # give time for any outstanding data to be sent
+        time.sleep(0.5)
+        self.stop_flag.clear()
+        info['callback'](return_json)
+        return result
+
     def process_request(self, data: dict, callback, return_json: dict):
         """
         Process the request. The request is in json format and is processed based on the command.
@@ -385,6 +445,7 @@ class PythonRadarApi:
         func = data['command']
         result = -1
         print('Processing Request {}'.format(data))
+
         if func == 'init':
             if None in init_params.values():
                 print("Invalid parameters!")
@@ -441,6 +502,10 @@ class PythonRadarApi:
         elif not isinstance(data, dict):
             raise TypeError('Unknown type')
         info = {'data': data, 'callback': callback}
+        # if stop command, stop the radar and all subsequent requests
+        if data['command'] == 'stop':
+            self.stop_radar(info)
+            return
         self.request_queue.put(info)
         
 
