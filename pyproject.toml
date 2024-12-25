@@ -10,6 +10,7 @@ python = "^3.12"
 flask = "^3.0.3"
 numpy = "^2.1.1"
 requests = "^2.32.3"
+radar-client = { git = "git@github.com:Holosis-Health/radar-client.git", rev = "main" }
 
 
 [build-system]
