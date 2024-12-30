@@ -135,6 +135,21 @@ def x4_calculate_bin_number(start: float, end: float, downconversion_enabled: in
     return bins
 
 
+class BufferPool:
+    def __init__(self, buffer_size, pool_size=2):
+        """Initialize a pool of ctypes buffers
+        Args:
+            buffer_size: Size of each buffer (number of floats)
+            pool_size: Number of buffers in the pool
+        """
+        self.buffers = [(ctypes.c_float * buffer_size)() for _ in range(pool_size)]
+        self.available = queue.Queue()
+        self.buffer_size = buffer_size
+        for buf in self.buffers:
+            self.available.put(buf)
+        self.lock = threading.Lock()
+
+
 # TODO add reset radar
 class PythonRadarApi:
     frequency_dict = {'US': 4, 'EU': 3}
@@ -161,6 +176,8 @@ class PythonRadarApi:
                                 infinite queue size.
         """
         self.timeout = timeout
+        self.buffer_pool = BufferPool(30000 * 390, pool_size=2)
+
         # types
         self.mylib = ctypes.CDLL(so_path)
         self.mylib.radar_init.argtypes= [ctypes.c_int, ctypes.c_int, ctypes.c_int,
@@ -277,86 +294,128 @@ class PythonRadarApi:
             flag(int) - flag indicating the status of the radar request
             data_ctypes(ctypes.c_float) - data from the radar
         """
-        IntArray = ctypes.c_int*len(antenna_numbers)
-        antenna_ctypes = IntArray(*antenna_numbers)
-        flag = ctypes.c_uint8(0)
-        nbins = ctypes.c_uint32(0)
-        r_start = r_start + self.r_zero
-        errors = ''
-        result = self.mylib.set_request_params(r_start, start_to_stop, prf_div, pps, fps, downconversion_enabled, ctypes.byref(nbins),
-                                      ctypes.c_uint32(chunk_size))
-        # nbins = int(x4_calculate_bin_number(r_start, r_start + start_to_stop, downconversion_enabled))
-        print('number of bins {}'.format(nbins.value))
-        if downconversion_enabled:
-            DataFloatArray = ctypes.c_float*(repetitions*nbins.value*len(antenna_numbers)*2)
-            data_ctypes = DataFloatArray(*[0.0]*(repetitions*nbins.value*len(antenna_numbers)*2))
-            total_size = repetitions*nbins.value*len(antenna_numbers)*2
-        else:
-            DataFloatArray = ctypes.c_float*(repetitions*nbins.value*len(antenna_numbers))
-            data_ctypes = DataFloatArray(*[0.0]*(repetitions*nbins.value*len(antenna_numbers)))
-            total_size = repetitions*nbins.value*len(antenna_numbers)
-        start_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        print('total size {}'.format(total_size))
-        chunk_index = 0
-        if chunk_size == 0:
-            chunk_size = repetitions*len(antenna_numbers)
-        result = self.mylib.radar_request(antenna_ctypes, len(antenna_numbers), repetitions, data_ctypes,
-                                          ctypes.byref(flag))
-
-        while chunk_index*chunk_size < repetitions*len(antenna_numbers):
-            start = time.time()
-            while(not flag.value):
-                if self.stop_flag.is_set():
-                    print("Request interrupted by stop command")
-                    total_chunks = math.ceil(repetitions*len(antenna_numbers) / chunk_size)
-                    return_data = {
-                        'status': -1,
-                        'data': (ctypes.c_float*1)(0.0),
-                        'nbins': 1,
-                        'errors': ["Request interrupted by stop command"],
-                        'repetitions': 1,
-                        'antenna_number': 1,
-                        'downconversion_enabled': 0,
-                        'timestamp': start_time,
-                        'chunk_index': total_chunks - 1,
-                        'total_chunks': total_chunks,
-                        'command': 'request',
-                    }
-                    callback(return_data)
-                    return -1
-                               
-                if time.time() - start > self.timeout:
-                    print("Radar unresponsive")
-                    result = -1
-                    errors = "Radar unresponsive"
-                    return -1
-                time.sleep(0.01)
-                continue
-            
-            if result != 0:
-                errors = ["Radar request failed - check result code for more information"]
-            
-            start_idx = chunk_index * chunk_size * nbins.value
-            end_idx = min((chunk_index + 1) * chunk_size * nbins.value, 
-                         total_size)
-            chunk_data = data_ctypes[start_idx:end_idx]
+        try:
+            print("Requesting buffer from pool")
+            # Get available buffer with timeout
+            data_ctypes = self.buffer_pool.available.get(timeout=self.timeout)
+            print("Got buffer from pool")
+        except queue.Empty:
             return_data = {
-                'status': result,
-                'data': chunk_data,
-                'nbins': nbins.value,
-                'repetitions': repetitions,
-                'antenna_number': len(antenna_numbers),
-                'downconversion_enabled': downconversion_enabled,
-                'timestamp': start_time,
-                'chunk_index': chunk_index,
-                'total_chunks': math.ceil(repetitions*len(antenna_numbers) / chunk_size),
+                'status': -1,
+                'data': (ctypes.c_float*1)(0.0),
+                'nbins': 1,
+                'errors': ["Timeout waiting for available buffer"],
+                'repetitions': 1,
+                'antenna_number': 1,
+                'downconversion_enabled': 0,
+                'timestamp': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                'chunk_index': 0,
+                'total_chunks': 1,
                 'command': 'request',
-                'errors': errors
             }
-            print("Returning chunk {}".format(chunk_index))
             callback(return_data)
-            flag.value = 0
-            chunk_index += 1
+            print("Timeout waiting for available buffer")
+            return -1
+        
+        try:
+            IntArray = ctypes.c_int*len(antenna_numbers)
+            antenna_ctypes = IntArray(*antenna_numbers)
+            flag = ctypes.c_uint8(0)
+            nbins = ctypes.c_uint32(0)
+            r_start = r_start + self.r_zero
+            errors = ''
+            result = self.mylib.set_request_params(r_start, start_to_stop, prf_div, pps, fps, downconversion_enabled, ctypes.byref(nbins),
+                                        ctypes.c_uint32(chunk_size))
+            # nbins = int(x4_calculate_bin_number(r_start, r_start + start_to_stop, downconversion_enabled))
+            print('number of bins {}'.format(nbins.value))
+            if downconversion_enabled:
+                total_size = repetitions*nbins.value*len(antenna_numbers)*2
+            else:
+                total_size = repetitions*nbins.value*len(antenna_numbers)
+            
+            start_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            print('total size {}'.format(total_size))
+            chunk_index = 0
+            if chunk_size == 0:
+                chunk_size = repetitions*len(antenna_numbers)
+            result = self.mylib.radar_request(antenna_ctypes, len(antenna_numbers), repetitions, data_ctypes,
+                                            ctypes.byref(flag))
+
+            while chunk_index*chunk_size < repetitions*len(antenna_numbers):
+                start = time.time()
+                while(not flag.value):
+                    if self.stop_flag.is_set():
+                        print("Request interrupted by stop command")
+                        total_chunks = math.ceil(repetitions*len(antenna_numbers) / chunk_size)
+                        return_data = {
+                            'status': -1,
+                            'data': (ctypes.c_float*1)(0.0),
+                            'nbins': 1,
+                            'errors': ["Request interrupted by stop command"],
+                            'repetitions': 1,
+                            'antenna_number': 1,
+                            'downconversion_enabled': 0,
+                            'timestamp': start_time,
+                            'chunk_index': total_chunks - 1,
+                            'total_chunks': total_chunks,
+                            'command': 'request',
+                        }
+                        callback(return_data)
+                        return -1
+                                
+                    if time.time() - start > self.timeout:
+                        print("Radar unresponsive")
+                        result = -1
+                        errors = "Radar unresponsive"
+                        return -1
+                    time.sleep(0.01)
+                    continue
+                
+                if result != 0:
+                    errors = ["Radar request failed - check result code for more information"]
+                
+                start_idx = chunk_index * chunk_size * nbins.value
+                end_idx = min((chunk_index + 1) * chunk_size * nbins.value, 
+                            total_size)
+                chunk_data = data_ctypes[start_idx:end_idx]
+                return_data = {
+                    'status': result,
+                    'data': chunk_data,
+                    'nbins': nbins.value,
+                    'repetitions': repetitions,
+                    'antenna_number': len(antenna_numbers),
+                    'downconversion_enabled': downconversion_enabled,
+                    'timestamp': start_time,
+                    'chunk_index': chunk_index,
+                    'total_chunks': math.ceil(repetitions*len(antenna_numbers) / chunk_size),
+                    'command': 'request',
+                    'errors': errors
+                }
+                print("Returning chunk {}".format(chunk_index))
+                callback(return_data)
+                flag.value = 0
+                chunk_index += 1
+        except Exception as e:
+            return_data = {
+                'status': -1,
+                'data': (ctypes.c_float*1)(0.0),
+                'nbins': 1,
+                'errors': ["Error in radar request {}".format(e)],
+                'repetitions': 1,
+                'antenna_number': 1,
+                'downconversion_enabled': 0,
+                'timestamp': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                'chunk_index': 0,
+                'total_chunks': 1,
+                'command': 'request',
+            }
+            print("Error in radar request {}".format(e))
+            callback(return_data)
+            return -1
+        finally:
+            # Always return buffer to pool, even if there's an error
+            print("Returning buffer to pool")
+            self.buffer_pool.available.put(data_ctypes)
         print('All chunks received!!')
         return result
     
@@ -423,8 +482,8 @@ class PythonRadarApi:
                 self.request_queue.task_done()
             except queue.Empty:
                 break
-        # give time for any outstanding data to be sent
-        time.sleep(0.5)
+        # give time for any outstanding data to be sent (matches client delay)
+        time.sleep(1)
         self.stop_flag.clear()
         info['callback'](return_json)
         return result
@@ -613,7 +672,8 @@ class RadarSocketCommunication(RadarCommunication):
         while self.client_socket is not None:
             try:                
                 data = self.client_socket.recv(1024).decode('utf-8')
-                print("Received data: ", data)
+                
+                print("Received data: {} at time {}".format(data, datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
                 if not data:
                     self.empty_count += 1
                     print(self.empty_count)
@@ -621,16 +681,16 @@ class RadarSocketCommunication(RadarCommunication):
                         print("Too many empty packets. Closing connection")
                         self.reset_socket()
                 else:
-                    self.api_class.register_request(data, self.result_ready)               
+                    self.api_class.register_request(data, self.result_ready_with_request_time(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")))               
             except socket.timeout as e:
                 print("Connection timed out!")
                 self.reset_socket()
-                time.sleep(10)
+                time.sleep(1)
             except Exception as e:
                 print("Error: ", e)
                 # is there a point in sending an error?
                 self.reset_socket()
-                time.sleep(10)
+                time.sleep(1)
             time.sleep(0.1)
     
     def reset_socket(self):
@@ -662,7 +722,22 @@ class RadarSocketCommunication(RadarCommunication):
             self.server_socket = None
         self.shutdown_event.set()
 
-    def result_ready(self, return_data: dict):
+    def result_ready_with_request_time(self, request_time: str = None):
+        """
+        Callback to call when processing is finished.
+        The data will be returned to the client in bytes with the following format:
+        4 bytes for the length of the data
+        4 bytes for the status (int)
+        4 bytes for the nbins (int)
+        4 bytes for the number of repetitions (int)
+        4 bytes for the number of antennas (int)
+        n*4 bytes for the data (float)
+        """
+        def callback(return_data):
+            self.result_ready(return_data, request_time)
+        return callback
+
+    def result_ready(self, return_data: dict, request_time: str = None):
         """
         Callback to call when processing is finished.
         The data will be returned to the client in bytes with the following format:
@@ -674,6 +749,7 @@ class RadarSocketCommunication(RadarCommunication):
         n*4 bytes for the data (float)
         Inputs:
             return_data (dict): The dictionary of results from processing
+            request_time (str): The time the request was received
         """
         try:
             data = return_data['data']
@@ -688,7 +764,8 @@ class RadarSocketCommunication(RadarCommunication):
                 'downconversion_enabled': return_data['downconversion_enabled'],
                 'timestamp': return_data['timestamp'],
                 'chunk_index': return_data['chunk_index'],
-                'total_chunks': return_data['total_chunks']
+                'total_chunks': return_data['total_chunks'],
+                'request_time': request_time
             }
             metadata_bytes = json.dumps(metadata).encode('utf-8')
             self.client_socket.sendall(len(metadata_bytes).to_bytes(4, 'big'))
