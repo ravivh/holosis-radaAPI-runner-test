@@ -1,0 +1,6 @@
+# build products
+build/
+
+# vscode profiles
+Debug/
+Release/
