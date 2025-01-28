@@ -56,8 +56,14 @@ clone_git_commit() {
 
     git clone $url
     cd $gitroot
+    cp ../../build-sdk.sh .
     git checkout $commithash
 }
+
+if [ -z "$1" ]
+  then
+    usage
+fi
 
 WORKING_DIR=$1
 mkdir -p ${WORKING_DIR}
@@ -79,5 +85,4 @@ connection_check
 echo "Entering sdk directory..."
 cd "$WORKING_DIR"
 clone_git_commit "${SOLIDRUN_SDK[@]}"
-cp ./build-sdk.sh $WORKING_DIR
 #download_and_verify "${TOOLCHAIN[@]}"
