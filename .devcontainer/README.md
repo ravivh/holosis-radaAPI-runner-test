@@ -6,7 +6,7 @@
 
 ### 1. Download the SDK to a Docker Volume Folder
 
-Run the following command to download the SDK sources to the specified folder:
+Run the following command to download the SDK sources to the specified folder( the script is located in imx8-sdk dir):
 
 ```bash
 download-sdk-sources.sh <sdk_volume_folder>
