@@ -59,6 +59,7 @@ RUN DEBIAN_FRONTEND=noninteractive dpkg-reconfigure dash
 
 # additional packages
 RUN apt-get install -y e2tools parted mtools
+RUN apt-get install -y cpio
 
 
 #install the toolchain
