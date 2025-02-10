@@ -147,8 +147,7 @@ class BufferPool:
         self.buffer_size = buffer_size
         for buf in self.buffers:
             self.available.put(buf)
-        self.lock = threading.Lock()
-
+        
 
 # TODO add reset radar
 class PythonRadarApi:
