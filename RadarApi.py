@@ -30,6 +30,7 @@ import uuid
 
 
 X4DRIVER_METERS_PER_BIN = 1*1.5e8/23.328e9
+date_string = "%Y-%m-%d %H:%M:%S.%f"
 
 def x4_calculate_bin_number(start: float, end: float, downconversion_enabled: int) -> int:
     """
@@ -307,7 +308,7 @@ class PythonRadarApi:
                 'repetitions': 1,
                 'antenna_number': 1,
                 'downconversion_enabled': 0,
-                'timestamp': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                'timestamp': datetime.datetime.now().strftime(date_string),
                 'chunk_index': 0,
                 'total_chunks': 1,
                 'command': 'request',
@@ -332,7 +333,7 @@ class PythonRadarApi:
             else:
                 total_size = repetitions*nbins.value*len(antenna_numbers)
             
-            start_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            start_time = datetime.datetime.now().strftime(date_string)
             print('total size {}'.format(total_size))
             chunk_index = 0
             if chunk_size == 0:
@@ -403,7 +404,7 @@ class PythonRadarApi:
                 'repetitions': 1,
                 'antenna_number': 1,
                 'downconversion_enabled': 0,
-                'timestamp': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                'timestamp': datetime.datetime.now().strftime(date_string),
                 'chunk_index': 0,
                 'total_chunks': 1,
                 'command': 'request',
@@ -433,7 +434,7 @@ class PythonRadarApi:
                     'repetitions': 1,
                     'antenna_number': 1,
                     'downconversion_enabled': 0,
-                    'timestamp': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    'timestamp': datetime.datetime.now().strftime(date_string),
                     'chunk_index': 0,
                     'total_chunks': 1,
                     'command': 'init'
@@ -464,7 +465,7 @@ class PythonRadarApi:
             'repetitions': 1,
             'antenna_number': 1,
             'downconversion_enabled': 0,
-            'timestamp': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            'timestamp': datetime.datetime.now().strftime(date_string),
             'chunk_index': 0,
             'total_chunks': 1,
             'command': 'stop'
@@ -513,7 +514,7 @@ class PythonRadarApi:
                 print(result)
                 return_json['status'] = result
                 return_json['command'] = func
-                return_json['timestamp'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                return_json['timestamp'] = datetime.datetime.now().strftime(date_string)
             callback(return_json)
         elif func == 'request':
             # allow chunk size to not be specified - defaults to all data
@@ -535,7 +536,7 @@ class PythonRadarApi:
                 print(result)
                 return_json['status'] = result
                 return_json['command'] = func
-                return_json['timestamp'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                return_json['timestamp'] = datetime.datetime.now().strftime(date_string)
             callback(return_json)
         else:
             print("Invalid command!")
@@ -672,7 +673,7 @@ class RadarSocketCommunication(RadarCommunication):
             try:                
                 data = self.client_socket.recv(1024).decode('utf-8')
                 
-                print("Received data: {} at time {}".format(data, datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+                print("Received data: {} at time {}".format(data, datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")))
                 if not data:
                     self.empty_count += 1
                     print(self.empty_count)
@@ -680,7 +681,7 @@ class RadarSocketCommunication(RadarCommunication):
                         print("Too many empty packets. Closing connection")
                         self.reset_socket()
                 else:
-                    self.api_class.register_request(data, self.result_ready_with_request_time(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")))               
+                    self.api_class.register_request(data, self.result_ready_with_request_time(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")))               
             except socket.timeout as e:
                 print("Connection timed out!")
                 self.reset_socket()
