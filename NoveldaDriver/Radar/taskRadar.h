@@ -5,6 +5,8 @@
 #include "x4driver.h"
 #include "common.h"
 
+#define _1_SEC 1000000
+
 typedef struct RadarApiNoveldaParams
 {
 	float32_t    Rstart_m        ;        // 1 (null)

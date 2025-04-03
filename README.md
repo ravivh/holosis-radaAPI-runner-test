@@ -25,9 +25,18 @@ For client code, two example scripts are given in RadarClientExample.py (for soc
 If running flask, need to also run the run_flask_server.py to get the data from the device. The file name and save folder
 can be adjusted using arguments to the script
 
+Client-server IP addresses configuration:
 
+1. Update ip addresses, upload folders, and credentials in RadarClientExample.py (or RadarFlaskClientExample.py)
+server_ip = 'ip-address-of-holosis-imx8-board'
+upload_folder = '/radar'
+radar_client = RadarSocketClient(server_ip, 5044, "root", "root", "python3 RadarApi.py")
 
-
-
-
-
+2. Update holosissystem/parameters/parameters.yaml, section 'Holosis connectivity' with servers credentials
+Holosis Connectivity:
+  ip: <host-pc-ip-address> #->(trego-compilation-server) #192.168.1.233(initial-ip-when-in-trego) #192.168.252.12(Leo), 192.168.1.232(in testing room), 192.168.1.233(Yael)
+  app_path: NoveldaAppMatlab_01.05
+  port: 5044
+  user: <host-pc-username>
+  password: <host-pc-password>
+  python_command: python3 RadarApi.py

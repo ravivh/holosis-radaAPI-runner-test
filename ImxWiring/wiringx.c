@@ -5,7 +5,6 @@
   License, v. 2.0. If a copy of the MPL was not distributed with this
   file, You can obtain one at http://mozilla.org/MPL/2.0/.
 */
-
 #include <stdio.h>
 #include <stdarg.h>
 #include <stdint.h>
@@ -20,23 +19,6 @@
 #include <sys/types.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
-#ifndef __FreeBSD__
-	#include <linux/spi/spidev.h>
-	#include "i2c-dev.h"
-#endif
-
-#include "wiringx.h"
-#include "taskRadar.h"
-#include "radar_hal.h"
-
-#include "imx6dqrm.h"
-#include "imx6sdlrm.h"
-
-#include "hummingboard_gate_edge_sdl.h"
-#include "hummingboard_gate_edge_dq.h"
-#include "hummingboard_base_pro_sdl.h"
-#include "hummingboard_base_pro_dq.h"
-
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -45,7 +27,31 @@
 #include <sched.h>
 
 #include "common.h"
-//#include "../RadarHandler.h"
+#include "wiringx.h"
+#include "taskRadar.h"
+#include "radar_hal.h"
+
+#ifndef __FreeBSD__
+	#include <linux/spi/spidev.h>
+	#include "i2c-dev.h"
+#endif
+
+// IMX6 includes
+#ifdef IMX6
+#include "imx6dqrm.h"
+#include "imx6sdlrm.h"
+#include "hummingboard_gate_edge_sdl.h"
+#include "hummingboard_gate_edge_dq.h"
+#include "hummingboard_base_pro_sdl.h"
+#include "hummingboard_base_pro_dq.h"
+#endif
+
+// IMX8 includes
+#ifdef IMX8
+#include "imx8mp.h"
+#include "hummingboard_pro.h"
+#endif
+
 
 char *pSpiShareMemory = NULL;
 pthread_t InterruptTid;
@@ -120,7 +126,8 @@ static struct spi_t spi[2] = {
 
 /* Both the delayMicroseconds and the delayMicrosecondsHard
    are taken from wiringPi */
-static void delayMicrosecondsHard(unsigned int howLong) {
+static void delayMicrosecondsHard(unsigned int howLong)
+{
 	struct timeval tNow, tLong, tEnd ;
 
 	gettimeofday(&tNow, NULL);
@@ -138,7 +145,8 @@ static void delayMicrosecondsHard(unsigned int howLong) {
 	}
 }
 
-EXPORT void delayMicroseconds(unsigned int howLong) {
+EXPORT void delayMicroseconds(unsigned int howLong)
+{
 	struct timespec sleeper;
 #ifdef _WIN32
 	long int uSecs = howLong % 1000000;
@@ -163,7 +171,8 @@ EXPORT void delayMicroseconds(unsigned int howLong) {
 	}
 }
 
-void wiringXDefaultLog(int prio, char *file, int line, const char *format_str, ...) {
+void wiringXDefaultLog(int prio, char *file, int line, const char *format_str, ...)
+{
 	va_list ap, apcpy;
 	char buf[64], *l = malloc(128);
 	int save_errno = -1, pos = 0, bytes = 0;
@@ -226,60 +235,34 @@ void wiringXDefaultLog(int prio, char *file, int line, const char *format_str, .
 	errno = save_errno;
 }
 
-static void wiringXInit(void) {
+static void wiringXInit(void)
+{
 	if(isinit == 0) {
-		printf("Ronen init wiringXInit \n");
+		// printf("Ronen init wiringXInit \n");
 		isinit = 1;
 	} else {
-		printf("Ronen system is already init \n");
+		// printf("Ronen system is already init \n");
 		return;
 	}
 
-//	/* Init all SoC's */
-//	allwinnerA10Init();
-//	allwinnerA31sInit();
-//	allwinnerH3Init();
-//	allwinnerH5Init();
-//	nxpIMX6DQRMInit();
-//	nxpIMX6SDLRMInit();
-//	broadcom2835Init();
-//	broadcom2836Init();
-//	amlogicS805Init();
-//	amlogicS905Init();
-//	exynos5422Init();
-//
-//	/* Init all platforms */
-//	pcduino1Init();
-//	bananapi1Init();
-//	bananapiM2Init();
-//	orangepipcpInit();
-//	orangepipc2Init();
-//	hummingboardBaseProSDLInit();
-//	hummingboardBaseProDQInit();
-//	hummingboardGateEdgeSDLInit();
-//	hummingboardGateEdgeDQInit();
-//	raspberrypi1b1Init();
-//	raspberrypi1b2Init();
-//	raspberrypi1bpInit();
-//	raspberrypizeroInit();
-//	raspberrypi2Init();
-//	raspberrypi3Init();
-//	odroidc1Init();
-//	odroidc2Init();
-//	odroidxu4Init();
-
+#ifdef IMX6
 	nxpIMX6DQRMInit();
-
 	hummingboardBaseProDQInit();
+#endif
 
+#ifdef IMX8
+	nxpIMX8MPInit();
+	hummingboardProInit();
+#endif
 }
 
-EXPORT int wiringXSetup(char *name, void (*func)(int, char *, int, const char *, ...)) {
+EXPORT int wiringXSetup(char *name, void (*func)(int, char *, int, const char *, ...))
+{
 	if(issetup == 0) {
-		printf("wiring setup  now \n");
+		// printf("wiring setup now\n");
 		issetup = 1;
 	} else {
-		printf("wiring is already setup \n");
+		// printf("wiring is already setup\n");
 		return 0;
 	}
 
@@ -313,7 +296,7 @@ EXPORT int wiringXSetup(char *name, void (*func)(int, char *, int, const char *,
 
 EXPORT char *wiringXPlatform(void) {
 	if(platform == NULL) {
-		wiringXLog(LOG_ERR, "wiringX has not been properly setup (no platform has been selected)");
+		wiringXLog(LOG_ERR, "wiringX has not been properly setup (no platform has been selected)\n");
 		return NULL;
 	}
 	return platform->name[namenr];
@@ -321,10 +304,10 @@ EXPORT char *wiringXPlatform(void) {
 
 EXPORT int pinMode(int pin, enum pinmode_t mode) {
 	if(platform == NULL) {
-		wiringXLog(LOG_ERR, "wiringX has not been properly setup (no platform has been selected)");
+		wiringXLog(LOG_ERR, "wiringX has not been properly setup (no platform has been selected)\n");
 		return -1;
 	} else if(platform->pinMode == NULL) {
-		wiringXLog(LOG_ERR, "The %s does not support the pinMode functionality", platform->name[namenr]);
+		wiringXLog(LOG_ERR, "The %s does not support the pinMode functionality\n", platform->name[namenr]);
 		return -1;
 	}
 	return platform->pinMode(pin, mode);
@@ -332,10 +315,10 @@ EXPORT int pinMode(int pin, enum pinmode_t mode) {
 
 EXPORT int digitalWrite(int pin, enum digital_value_t value) {
 	if(platform == NULL) {
-		wiringXLog(LOG_ERR, "wiringX has not been properly setup (no platform has been selected)");
+		wiringXLog(LOG_ERR, "wiringX has not been properly setup (no platform has been selected)\n");
 		return -1;
 	}	else if(platform->digitalWrite == NULL) {
-		wiringXLog(LOG_ERR, "The %s does not support the digitalWrite functionality", platform->name[namenr]);
+		wiringXLog(LOG_ERR, "The %s does not support the digitalWrite functionality\n", platform->name[namenr]);
 		return -1;
 	}
 	return platform->digitalWrite(pin, value);
@@ -343,10 +326,10 @@ EXPORT int digitalWrite(int pin, enum digital_value_t value) {
 
 EXPORT int digitalRead(int pin) {
 	if(platform == NULL) {
-		wiringXLog(LOG_ERR, "wiringX has not been properly setup (no platform has been selected)");
+		wiringXLog(LOG_ERR, "wiringX has not been properly setup (no platform has been selected)\n");
 		return -1;
 	}	else if(platform->digitalRead == NULL) {
-		wiringXLog(LOG_ERR, "The %s does not support the digitalRead functionality", platform->name[namenr]);
+		wiringXLog(LOG_ERR, "The %s does not support the digitalRead functionality\n", platform->name[namenr]);
 		return -1;
 	}
 	return platform->digitalRead(pin);
@@ -358,12 +341,12 @@ EXPORT int wiringXISR(int pin, enum isr_mode_t mode)
 
 	if(platform == NULL)
 	{
-		wiringXLog(LOG_ERR, "wiringX has not been properly setup (no platform has been selected)");
+		wiringXLog(LOG_ERR, "wiringX has not been properly setup (no platform has been selected)\n");
 		return -1;
 	}
 	else if(platform->isr == NULL)
 	{
-		wiringXLog(LOG_ERR, "The %s does not support the wiringXISR functionality", platform->name[namenr]);
+		wiringXLog(LOG_ERR, "The %s does not support the wiringXISR functionality\n", platform->name[namenr]);
 		return -1;
 	}
 /*
@@ -378,10 +361,10 @@ EXPORT int wiringXISR(int pin, enum isr_mode_t mode)
 
 EXPORT int waitForInterrupt(int pin, int ms) {
 	if(platform == NULL) {
-		wiringXLog(LOG_ERR, "wiringX has not been properly setup (no platform has been selected)");
+		wiringXLog(LOG_ERR, "wiringX has not been properly setup (no platform has been selected)\n");
 		return -1;
 	}	else if(platform->waitForInterrupt == NULL) {
-		wiringXLog(LOG_ERR, "The %s does not support the waitForInterrupt functionality", platform->name[namenr]);
+		wiringXLog(LOG_ERR, "The %s does not support the waitForInterrupt functionality\n", platform->name[namenr]);
 		return -1;
 	}
 
@@ -390,10 +373,10 @@ EXPORT int waitForInterrupt(int pin, int ms) {
 
 EXPORT int wiringXValidGPIO(int pin) {
 	if(platform == NULL) {
-		wiringXLog(LOG_ERR, "wiringX has not been properly setup (no platform has been selected)");
+		wiringXLog(LOG_ERR, "wiringX has not been properly setup (no platform has been selected)\n");
 		return -1;
 	}	else if(platform->validGPIO == NULL) {
-		wiringXLog(LOG_ERR, "The %s does not support the wiringXValidGPIO functionality", platform->name[namenr]);
+		wiringXLog(LOG_ERR, "The %s does not support the wiringXValidGPIO functionality\n", platform->name[namenr]);
 		return -1;
 	}
 	return platform->validGPIO(pin);
@@ -430,12 +413,11 @@ EXPORT int wiringXI2CSetup(const char *path, int devId) {
 	int fd = 0;
 
 	if((fd = open(path, O_RDWR)) < 0) {
-		wiringXLog(LOG_ERR, "wiringX failed to open %s for reading and writing", path);
+		wiringXLog(LOG_ERR, "wiringX failed to open %s for reading and writing\n", path);
 		return -1;
 	}
-
 	if(ioctl(fd, I2C_SLAVE, devId) < 0) {
-		wiringXLog(LOG_ERR, "wiringX failed to set %s to slave mode", path);
+		wiringXLog(LOG_ERR, "wiringX failed to set %s to slave mode\n", path);
 		return -1;
 	}
 
@@ -473,9 +455,8 @@ EXPORT int wiringXSPIDataRW(int channel, unsigned char *data, int len) {
 	}
 */
 //	digitalWrite( X4_TEST_PIN, HIGH);
-		if(ioctl(spi[channel].fd, SPI_IOC_MESSAGE(1), &tmp) < 0)
-		{
-			wiringXLog(LOG_ERR, "wiringX is unable to read/write from channel %d (%s)", channel, strerror(errno));
+		if(ioctl(spi[channel].fd, SPI_IOC_MESSAGE(1), &tmp) < 0) {
+			wiringXLog(LOG_ERR, "wiringX is unable to read/write from channel %d (%s)\n", channel, strerror(errno));
 			return -1;
 		}
 //		memcpy( data , pSpiShareMemory , len );
@@ -486,33 +467,28 @@ EXPORT int wiringXSPIDataRW(int channel, unsigned char *data, int len) {
 	return 0;
 }
 
-EXPORT int wiringXSPISetup(int channel, int speed) {
-
+EXPORT int wiringXSPISetup(int channel, int speed)
+{
 	const char *device = NULL;
-
-
 	uint32_t speedDebug = 0 ;
 	channel &= 1;
 
-	if(channel == 0) {
+	if (channel == 0) {
 		device = "/dev/spidev0.0";
 	} else {
 		device = "/dev/spidev1.0";
 	}
 
-	if( spisetup == 0 )
-	{
-		spisetup = 1 ;
-		printf("open spi channel \n");
-		if((spi[channel].fd = open(device, O_RDWR)) < 0) {
+	if (spisetup == 0) {
+		spisetup = 1;
+		// printf("open spi channel\n");
+		if ((spi[channel].fd = open(device, O_RDWR)) < 0) {
 			wiringXLog(LOG_ERR, "wiringX is unable to open SPI device %s (%s)", device, strerror(errno));
 			printf("fail to open spi channel %s (%s) \n" , device , strerror(errno));
 			return -1;
 		}
-	}
-	else
-	{
-		printf("spi channle is already open \n");
+	} else {
+		printf("spi channel is already open \n");
 	}
 
 /*
@@ -529,54 +505,47 @@ EXPORT int wiringXSPISetup(int channel, int speed) {
     }
 */
 
-
-
-	return spi[channel].fd;
 	spi[channel].speed = speed;
 
-	if(ioctl(spi[channel].fd, SPI_IOC_WR_MODE, &spi[channel].mode) < 0) {
+	//return spi[channel].fd;
+
+	if (ioctl(spi[channel].fd, SPI_IOC_WR_MODE, &spi[channel].mode) < 0) {
 		wiringXLog(LOG_ERR, "wiringX is unable to set write mode for device %s (%s)", device, strerror(errno));
 		close(spi[channel].fd);
 		return -1;
 	}
-
-	if(ioctl(spi[channel].fd, SPI_IOC_RD_MODE, &spi[channel].mode) < 0) {
+	if (ioctl(spi[channel].fd, SPI_IOC_RD_MODE, &spi[channel].mode) < 0) {
 		wiringXLog(LOG_ERR, "wiringX is unable to set read mode for device %s (%s)", device, strerror(errno));
 		close(spi[channel].fd);
 		return -1;
 	}
-
-	if(ioctl(spi[channel].fd, SPI_IOC_WR_BITS_PER_WORD, &spi[channel].bits_per_word) < 0) {
+	if (ioctl(spi[channel].fd, SPI_IOC_WR_BITS_PER_WORD, &spi[channel].bits_per_word) < 0) {
 		wiringXLog(LOG_ERR, "wiringX is unable to set write bits_per_word for device %s (%s)", device, strerror(errno));
 		close(spi[channel].fd);
 		return -1;
 	}
-
-	if(ioctl(spi[channel].fd, SPI_IOC_RD_BITS_PER_WORD, &spi[channel].bits_per_word) < 0) {
+	if (ioctl(spi[channel].fd, SPI_IOC_RD_BITS_PER_WORD, &spi[channel].bits_per_word) < 0) {
 		wiringXLog(LOG_ERR, "wiringX is unable to set read bits_per_word for device %s (%s)", device, strerror(errno));
 		close(spi[channel].fd);
 		return -1;
 	}
-
-	if(ioctl(spi[channel].fd, SPI_IOC_WR_MAX_SPEED_HZ, &spi[channel].speed) < 0) {
+	if (ioctl(spi[channel].fd, SPI_IOC_WR_MAX_SPEED_HZ, &spi[channel].speed) < 0) {
 		wiringXLog(LOG_ERR, "wiringX is unable to set write max_speed for device %s (%s)", device, strerror(errno));
 		close(spi[channel].fd);
 		return -1;
 	}
-
-	if(ioctl(spi[channel].fd, SPI_IOC_RD_MAX_SPEED_HZ, &spi[channel].speed) < 0) {
+	if (ioctl(spi[channel].fd, SPI_IOC_RD_MAX_SPEED_HZ, &spi[channel].speed) < 0) {
 		wiringXLog(LOG_ERR, "wirignX is unable to set read max_speed for device %s (%s)", device, strerror(errno));
 		close(spi[channel].fd);
 		return -1;
 	}
-
-	if(ioctl(spi[channel].fd, SPI_IOC_RD_MAX_SPEED_HZ, &speedDebug ) < 0) {
+	if (ioctl(spi[channel].fd, SPI_IOC_RD_MAX_SPEED_HZ, &speedDebug ) < 0) {
 		wiringXLog(LOG_ERR, "wirignX is unable to set read max_speed for device %s (%s)", device, strerror(errno));
 		close(spi[channel].fd);
 		return -1;
+	} else {
+		// printf("Ronen Aharoni speed is %d \n", speedDebug );
 	}
-	else
-		printf("Ronen Aharoni speed is %d \n", speedDebug );
 
 	return spi[channel].fd;
 }
@@ -951,7 +920,10 @@ int wiringXxISR (int pin, int mode, void (*function)(void))
   for (i = 0 ; i < count ; ++i)
     read (sysFds [bcmGpioPin], &c, 1) ;
 */
-	wiringXISR ( pin,  mode );
+  	if (wiringXISR(pin, mode) != 0) {
+		printf("Configuring pin %d as input failed!\n");
+		return -1;
+	}
 
 
   	isrFunctions = function ;
@@ -1007,14 +979,17 @@ static void *interruptHandler ( void *arg )
 //		digitalWrite( 0 , 1);
 
 #if 1
-	if (waitForInterrupt (myPin, -1) > 0)
-	{
-
-
+	int interrupt = -99;
+	interrupt = waitForInterrupt(myPin, -1);
+	if (interrupt > 0) {
 		//x4driver_data_ready();
 //		pthread_mutex_lock(&count_mutex);
 	    isrFunctions () ;
 //	    pthread_mutex_unlock(&count_mutex);
+	} else if (interrupt == 0) {
+		printf("waitForInterrupt timed out.\n");
+	} else {
+		perror("waitForInterrupt failed!\n");
 	}
 #else
 #if 1

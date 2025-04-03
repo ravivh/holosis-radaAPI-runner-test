@@ -26,6 +26,16 @@ target_link_libraries(RadarApi
     #xml2
 )
 
+# Include libgpiod only in case IMX8-based system
+if (IMX8)
+    message(STATUS "GPIOD interface included in RadarApi lib!")
+    include_directories(${LIBGPIOD_INCLUDE_DIR})
+    target_link_libraries(RadarApi libgpiod)
+    add_dependencies(RadarApi libgpiod-external)
+else()
+    message(STATUS "GPIOD interface not included!")
+endif()
+
 # Output directory for the executable
 set_target_properties(RadarApi PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin

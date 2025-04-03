@@ -17,10 +17,12 @@
 #include "Utilities.h"
 #include "NoveldaRadar.h"
 #include "common.h"
+#include "gpiod.h"
 
 
 extern "C" {
-#include <imx6dqrm.h>
+// #include <imx6dqrm.h>
+#include <imx8mp.h>
 }
 extern RadarApiParams radar_params;
 
@@ -50,7 +52,7 @@ FILE *fpFile = NULL;
 FILE *fpFile2 = NULL;
 int frameIndex = 0 ;
 
-#define DEBUG 1
+//#define DEBUG 1
 
 using namespace std;
 std::recursive_mutex x4driver_mutex;
@@ -220,15 +222,17 @@ void x4driver_enable_ISR(void *user_reference, uint32_t enable)
     if (enable == 1)
     {
         pinMode(X4_GPIO_INT, PINMODE_INPUT);
-//        pullUpDnControl(X4_GPIO_INT, PUD_DOWN);
+//pullUpDnControl(X4_GPIO_INT, PUD_DOWN);
+        
         if (wiringXxISR(X4_GPIO_INT, ISR_MODE_RISING, &x4driver_data_ready) < 0)
-//        if (wiringXxISR(X4_GPIO_INT, ISR_MODE_FALLING, &x4driver_data_ready) < 0)
+//if (wiringXxISR(X4_GPIO_INT, ISR_MODE_FALLING, &x4driver_data_ready) < 0)
         {
-            printf("unable to setup ISR");
+            printf("Unable to setup ISR!\n");
         }
     }
-    else
+    else {
         pinMode(X4_GPIO_INT, PINMODE_OUTPUT); //disable Interrupt
+    }
 }
 
 uint32_t task_radar_init(X4Driver_t **x4driver)
@@ -257,7 +261,7 @@ uint32_t task_radar_init(X4Driver_t **x4driver)
 
 	}
 
-	printf("ronen aharoni 1\n") ;
+	// printf("ronen aharoni 1\n") ;
 #if 1
 
 #ifdef DEBUG
@@ -361,7 +365,7 @@ uint32_t taskRadar( void* args )
 
 
     //initialize radar task
-    printf("task_radar start!\n");
+    // printf("task_radar start!\n");
     status = task_radar_init(&x4driver);
 
     TaskRadarGpioInit();
@@ -393,6 +397,7 @@ uint32_t taskRadar( void* args )
     }
     else
     {
+        printf("tmp_status: %d\n", tmp_status);
         printf("x4driver_init unknown situation\n");
     }
 #endif // DEBUG
@@ -803,16 +808,28 @@ void* taskWriteToFile( void* args )
 	return (void*)1;
 }
 
-typedef struct
-{
-	int pinNoscl;
-	int pinNo10  ;
-	int PinNo67  ;
-	int PinNo195 ; // not use
-	int PinNo71  ;
-	int PinNo72  ;
-	int PinNo73  ;
+#ifdef IMX6
+typedef struct {
+    int pinNoscl;
+    int pinNo10  ;
+    int PinNo67  ;
+    int PinNo195 ; // not use
+    int PinNo71  ;
+    int PinNo72  ;
+    int PinNo73  ;
 }AntennaBaseLine;
+#endif
+#ifdef IMX8
+typedef struct {
+	int PinNo137;   // old: pinNoscl;
+	int PinNo132;   // old: pinNo10;
+	int PinNo89;    // old: PinNo67;
+	int PinNo195;   // 195 is number from old setup, but is's not used
+	int PinNo136;   // old: PinNo71;
+	int PinNo87;    // old: PinNo72
+	int PinNo135;   // old: PinNo73
+} AntennaBaseLine;
+#endif
 
 
 AntennaBaseLine AntBaseLineArray[] =
@@ -881,11 +898,11 @@ AntennaBaseLine AntBaseLineArray[] =
 		{ 0 , 0 ,	1 ,	1 ,	1 ,	0 ,	1 } ,
 		{ 0 , 0 ,	1 ,	1 ,	1 ,	1 ,	0 } ,
 		{ 0 , 0 ,	1 ,	1 ,	1 ,	1 ,	1 } ,
-
 };
 
-typedef enum
-{
+
+#ifdef IMX6
+typedef enum {
 	GPIO73  = 0 ,
 	GPIO72  = 1 ,
 	GPI071  = 2 ,
@@ -900,61 +917,138 @@ typedef enum
 	GPIO67  = 6 ,
 	GPIO_LED = 8 ,
 	GPIO_ENABLE = 15 ,
+} gpioNo;
+#endif
 
-}gpioNo;
+#ifdef IMX8
+typedef enum {
+    GPIO137 = 0, /* GPIO5_IO09 -> layout[122]; (5-1)*32+09=137 */
+    GPIO134 = 1, /* GPIO5_IO06 -> layout[119]; (5-1)*32+06=134 */
+    GPIO135 = 2, /* GPIO5_IO07 -> layout[120]; (5-1)*32+07=135 */
+    GPIO136 = 3, /* GPIO5_IO08 -> layout[121]; (5-1)*32+08=136 */
+    GPIO132 = 4, /* GPIO5_IO04 -> layout[117]; (5-1)*32+04=132 */
+    GPIO89  = 5, /* GPIO3_IO25 -> layout[76];  (3-1)*32+25=89  */
+    GPIO87  = 6, /* GPIO3_IO23 -> layout[74];  (3-1)*32+23=87  */
+    GPIO156 = 7, /* GPIO5_IO28 -> layout[141]; (5-1)*32+28=156 */
+    GPIO126 = 8, /* GPIO4_IO30 -> layout[111]; (4-1)*32+30=126 */
+} gpioNo;
+#endif
+
+
 
 
 void TaskRadarGpioInit( void )
 {
-    //GPIO initialization
-
+#ifdef IMX6
+    //1 : AntRxi_LSB GPIO -> DISP1_DATA00 -> GPIO3_IO09 -> 73
 	pinMode(GPIO73 , PINMODE_OUTPUT);
-	pinMode(GPIO72 , PINMODE_OUTPUT);
-	pinMode(GPI071 , PINMODE_OUTPUT);
-	pinMode(GPIO10 , PINMODE_OUTPUT);
-	pinMode(SCL1, PINMODE_OUTPUT);
+    //2 : AntRxi_SSB GPIO -> DISP1_DATA01 -> GPIO3_IO08 -> 72
+    pinMode(GPIO72 , PINMODE_OUTPUT);
+    //3 : AntRxi_MSB GPIO -> DISP1_DATA02 -> GPIO3_IO07 -> 71
+    pinMode(GPI071 , PINMODE_OUTPUT);
+    //4 : Sec_TR_SSB GPIO -> DISP1_DATA03 -> GPIO3_IO06 -> 70
+    pinMode(GPIO10 , PINMODE_OUTPUT);
+    //5 : Sec_TR_MSB GPIO -> I2C3_SCL -> GPIO3_IO17 -> 81
+    pinMode(SCL1, PINMODE_OUTPUT);
+    //6 : SPI_NSS (SPI SEL) -> ECSPI2_SS0 -> GPIO5_IO29 -> 157
     pinMode(GPIO195, PINMODE_OUTPUT);
-	pinMode(GPIO67 , PINMODE_OUTPUT);
-	pinMode( 8 , PINMODE_OUTPUT);
-	pinMode( 15 , PINMODE_OUTPUT);
-	digitalWrite( 15   , (digital_value_t)1  );
+    //7 : Sec_TX_LSB GPIO -> DISP1_DATA06 -> GPIO3_IO03 -> 67
+    pinMode(GPIO67 , PINMODE_OUTPUT);
+    //8 : P42 (test point LED) -> I2C3_SDA -> GPIO3_IO18 -> 82
+    pinMode( 8 , PINMODE_OUTPUT);
+    //9 : SPI_MISO -> ECSPI2_MISO -> GPIO5_IO28 -> 149
+    pinMode( 15 , PINMODE_OUTPUT);
+    //10
+    digitalWrite(15, (digital_value_t) 1);
+#endif
 
-
+#ifdef IMX8
+    //1 : GPIO5_IO07 -> 135, actual: 120
+    pinMode(GPIO135, PINMODE_OUTPUT);
+    //2 : GPIO3_IO25 -> 89,  actual: 76
+	pinMode(GPIO89, PINMODE_OUTPUT);
+    //3 : GPIO5_IO08 -> 136, actual: 121
+	pinMode(GPIO136, PINMODE_OUTPUT);
+    //4 : GPIO5_IO04 -> 132, actual: 117
+	pinMode(GPIO132, PINMODE_OUTPUT);
+    //5 : GPIO5_IO09 -> 137, actual: 122
+    pinMode(GPIO137, PINMODE_OUTPUT);
+    //6 : SPI_NSS (SPI SEL) -> ECSPI2_SS0 -> GPIO5_IO13 -> 141
+	//pinMode(?, PINMODE_OUTPUT); we don't have SPI_NSS assisnged to any gpio
+    //7 : GPIO3_IO23 -> 87, actual: 74
+	pinMode(GPIO87, PINMODE_OUTPUT);
+    //8 : GPIO5_IO28 -> 156, actual: 141
+    pinMode(GPIO156, PINMODE_OUTPUT);
+    //9 : SPI_MISO -> ECSPI2_MISO -> we don't have SPI_MISO assigned to any gpio
+	//pinMode( ??? , PINMODE_OUTPUT);
+    //10: same as 9)
+    //digitalWrite( ??? , (digital_value_t) 1);
+#endif
 }
 
 void TaskRadarResetRadar( void )
 {
-#define _1_SEC 1000000
+#ifdef IMX6
+    //1
+    digitalWrite(GPIO_ENABLE, (digital_value_t)LOW);
+    delayMicroseconds(_1_SEC);
+    //2
+    //digitalWrite(GPIO_ENABLE, (digital_value_t) HIGH);
+#endif
 
-	digitalWrite( GPIO_ENABLE   , (digital_value_t)LOW  );
-	//delay()
-	delayMicroseconds( _1_SEC );
-	digitalWrite( GPIO_ENABLE   , (digital_value_t)HIGH  );
-
+#ifdef IMX8
+    //1
+    //digitalWrite( ??? , (digital_value_t) LOW);
+    delayMicroseconds(_1_SEC);
+    //2
+    //digitalWrite( ??? , (digital_value_t) HIGH);
+#endif
 }
 
 void TaskRadarSetAntenna( uint8_t AntennaBaseState )
 {
 	AntennaBaseLine* pAntBaseLine = NULL ;
 
-	if( AntennaBaseState > 63 )
-	{
-		printf("invalid base Line antenna \n");
+	if(AntennaBaseState > 63) {
+		printf("Invalid base Line antenna!\n");
 		return ;
 	}
 
 	pAntBaseLine = &AntBaseLineArray[ AntennaBaseState ];
 
-	digitalWrite( GPIO73   , (digital_value_t) pAntBaseLine->PinNo73  );
-	digitalWrite( GPIO72   , (digital_value_t) pAntBaseLine->PinNo72  );
-	digitalWrite( GPI071   , (digital_value_t) pAntBaseLine->PinNo71  );
-	digitalWrite( GPIO10   , (digital_value_t) pAntBaseLine->pinNo10  );
-	digitalWrite( SCL1  , (digital_value_t) pAntBaseLine->pinNoscl );
-//	digitalWrite( GPIO195  , (digital_value_t) pAntBaseLine->PinNo195 );
-	digitalWrite( GPIO67   , (digital_value_t) pAntBaseLine->PinNo67  );
+#ifdef IMX6
+    //1
+    digitalWrite(GPIO73, (digital_value_t) pAntBaseLine->PinNo73);
+    //2
+    digitalWrite(GPIO72, (digital_value_t) pAntBaseLine->PinNo72);
+    //3
+    digitalWrite(GPI071, (digital_value_t) pAntBaseLine->PinNo71);
+    //4
+    digitalWrite(GPIO10, (digital_value_t) pAntBaseLine->pinNo10);
+    //5
+    digitalWrite(SCL1, (digital_value_t) pAntBaseLine->pinNoscl);
+    //6
+    digitalWrite(GPIO67, (digital_value_t) pAntBaseLine->PinNo67);
+    //7 - this was commented out, so there is no this line in IMX8 part
+/*digitalWrite( GPIO195  , (digital_value_t) pAntBaseLine->PinNo195 );*/
+    //8 - this was commented out, so there is no this line in IMX8 part
+/*digitalWrite( GPIO73   , (digital_value_t) 0 );*/
+#endif
 
-//	digitalWrite( GPIO73   , (digital_value_t) 0 );
-
+#ifdef IMX8
+    //1
+    digitalWrite(GPIO135, (digital_value_t) pAntBaseLine->PinNo135);
+    //2
+    digitalWrite(GPIO89, (digital_value_t) pAntBaseLine->PinNo89);
+    //3
+    digitalWrite(GPIO136, (digital_value_t) pAntBaseLine->PinNo136);
+    //4
+    digitalWrite(GPIO132, (digital_value_t) pAntBaseLine->PinNo132);
+    //5
+    digitalWrite(GPIO137, (digital_value_t) pAntBaseLine->PinNo137);
+    //6
+    digitalWrite(GPIO87, (digital_value_t) pAntBaseLine->PinNo87);
+#endif
 }
 
 char test[30] = { 0 } ;
@@ -1010,15 +1104,21 @@ int GetInputFromUser( int *argc, char *argv[] )
 	return 0 ;
 }
 
-void printPinMux( int pin )
+void printPinMux(int pin)
 {
+#ifdef IMX6
 	nxpIMX6DQRMGetPinMux(pin);
+#endif
+#ifdef IMX8
+    nxpIMX8MPGetPinMux(pin);
+#endif
 }
 
 int RadarConfigConstantParameters( RadarApiNoveldaParams *params )
 {
 	uint32_t status = 0;
 	xtx4_tx_power_t tx_power = (xtx4_tx_power_t)0 ;
+
     status = x4driver_set_dac_min(x4driver, params->dacMin );
     if (status != XEP_ERROR_X4DRIVER_OK)
     {
@@ -1032,6 +1132,7 @@ int RadarConfigConstantParameters( RadarApiNoveldaParams *params )
 #ifdef DEBUG
     printf("x4driver_set_dac_min success\n");
 #endif
+
     status = x4driver_set_dac_max(x4driver, params->dacMax);
     if (status != XEP_ERROR_X4DRIVER_OK)
     {
@@ -1045,6 +1146,7 @@ int RadarConfigConstantParameters( RadarApiNoveldaParams *params )
 #ifdef DEBUG
     printf("x4driver_set_dac_max success\n");
 #endif
+
     status = x4driver_set_iterations(x4driver, params->iterations );
     if (status != XEP_ERROR_X4DRIVER_OK)
     {
@@ -1058,6 +1160,7 @@ int RadarConfigConstantParameters( RadarApiNoveldaParams *params )
 #ifdef DEBUG
     printf("x4driver_set_iterations success\n");
 #endif
+
     status = x4driver_set_frame_area_offset(x4driver, 0); // Given by module HW. Makes frame_area start = 0 at front of module.
     if (status != XEP_ERROR_X4DRIVER_OK)
     {
@@ -1071,6 +1174,7 @@ int RadarConfigConstantParameters( RadarApiNoveldaParams *params )
 #ifdef DEBUG
     printf("x4driver_set_frame_area_offset success\n");
 #endif
+
     status = x4driver_check_configuration(x4driver);
 #ifdef DEBUG
     if (status == XEP_ERROR_X4DRIVER_OK)
@@ -1082,6 +1186,7 @@ int RadarConfigConstantParameters( RadarApiNoveldaParams *params )
         printf("x4driver_check_configuration unknown situation. Status %d\n", status);
     }
 #endif // DEBUG
+
     status = x4driver_set_tx_power( x4driver, (xtx4_tx_power_t)params->transmitGain );
 #ifdef DEBUG
     if (status == XEP_ERROR_X4DRIVER_OK)
@@ -1092,11 +1197,9 @@ int RadarConfigConstantParameters( RadarApiNoveldaParams *params )
     {
         printf("x4driver_set_tx_power fail\n");
     }
-
 #endif // DEBUG
 
     x4driver_set_tx_center_frequency( x4driver,  (xtx4_tx_center_frequency_t)params->novelda_freq );
-
 #ifdef DEBUG
     if (status == XEP_ERROR_X4DRIVER_OK)
     {
@@ -1106,11 +1209,9 @@ int RadarConfigConstantParameters( RadarApiNoveldaParams *params )
     {
         printf("x4driver_set_tx_center_frequency fail\n");
     }
-
 #endif // DEBUG
 
     status = x4driver_get_tx_power(  x4driver, &tx_power);
-
 #ifdef DEBUG
     if (status == XEP_ERROR_X4DRIVER_OK)
     {
@@ -1121,6 +1222,7 @@ int RadarConfigConstantParameters( RadarApiNoveldaParams *params )
         printf("x4driver_set_tx_power fail\n");
     }
 #endif
+
     // no? - why in the RadarConfig is status not returned?
 	return status ;
 }
@@ -1221,6 +1323,8 @@ int RadarConfigDynamicParameters( RadarApiNoveldaParams *params )
         printf("x4driver_check_configuration unknown situation. Status %d\n", status);
     }
 #endif // DEBUG
+
+    return status;
 
 }
 

@@ -7,14 +7,10 @@
 #include <float.h>
 #include <math.h>
 #include <string.h>
-#include <stdio.h>
-#include <stdlib.h>
 
 #include "x4driver.h"
 
 #include <stdbool.h>
-#include "wiringx.h"
-
 
 #define START_OF_SRAM_LSB       0x00
 #define START_OF_SRAM_MSB       0x00
@@ -318,7 +314,7 @@ int _update_downconversion_coeffs(X4Driver_t* x4driver)
     if (x4driver->downconversion_enabled &&
             x4driver->downconversion_coeff_q1 != x4driver->downconversion_coeff_custom_q1)
     {
-        old_q1 = (int8_t*)x4driver->downconversion_coeff_q1;
+        old_q1 = x4driver->downconversion_coeff_q1;
         switch (x4driver->center_frequency)
         {
         case TX_CENTER_FREQUENCY_EU_7_290GHz:
@@ -729,7 +725,6 @@ int x4driver_upload_firmware_custom(X4Driver_t* x4driver, const uint8_t * buffer
     uint32_t status = mutex_take(x4driver);
     if (status != XEP_ERROR_X4DRIVER_OK) return status;
 
-    printf("ronen1\n");
 
     x4driver_set_spi_register(x4driver,ADDR_SPI_MEM_FIRST_ADDR_LSB_RW,START_OF_SRAM_LSB);
     x4driver_set_spi_register(x4driver,ADDR_SPI_MEM_FIRST_ADDR_MSB_RW,START_OF_SRAM_MSB);
@@ -904,39 +899,27 @@ int x4driver_setup_default(X4Driver_t* x4driver)
         return XEP_ERROR_X4DRIVER_COMMON_PLL_LOCK_FAIL;
 
     //Enable TX PLL
-    status = x4driver_set_pif_register(x4driver, ADDR_PIF_TX_PLL_CTRL_2_RW, 3);
+    has_lock = 0;
+    status = _x4driver_set_x4_sw_action(x4driver, 15);
     if (status != XEP_ERROR_X4DRIVER_OK) return status;
 
-    timeout = PLL_LOCK_ATTEMPS_MAX;
-    has_lock = 0;
-    do {
-        status = x4driver_get_pif_register(x4driver, ADDR_PIF_TX_PLL_STATUS_R, &pll_status);
-        if (status != XEP_ERROR_X4DRIVER_OK) return status;
-        if ((pll_status & 0x80) != 0) {
-            has_lock = 1;
-            break;
-        }
-        x4driver->callbacks.wait_us(10);
-    } while (timeout--);
+    status = x4driver_get_pif_register(x4driver, ADDR_PIF_TX_PLL_STATUS_R,
+                                           &pll_status);
+    if (status == XEP_ERROR_X4DRIVER_OK)
+        has_lock = pll_status & 0x80;
 
     if (!has_lock)
         return XEP_ERROR_X4DRIVER_TX_PLL_LOCK_FAIL;
 
     //Enable RX PLL
-    status = x4driver_set_pif_register(x4driver, ADDR_PIF_RX_PLL_CTRL_2_RW, 3);
+    has_lock = 0;
+    status = _x4driver_set_x4_sw_action(x4driver, 16);
     if (status != XEP_ERROR_X4DRIVER_OK) return status;
 
-    timeout = PLL_LOCK_ATTEMPS_MAX;
-    has_lock = 0;
-    do {
-        status = x4driver_get_pif_register(x4driver, ADDR_PIF_RX_PLL_STATUS_R, &pll_status);
-        if (status != XEP_ERROR_X4DRIVER_OK) return status;
-        if ((pll_status & 0x80) != 0) {
-            has_lock = 1;
-            break;
-        }
-        x4driver->callbacks.wait_us(10);
-    } while (timeout--);
+    status = x4driver_get_pif_register(x4driver, ADDR_PIF_RX_PLL_STATUS_R,
+                                           &pll_status);
+    if (status == XEP_ERROR_X4DRIVER_OK)
+        has_lock = pll_status & 0x80;
 
     if (!has_lock)
         return XEP_ERROR_X4DRIVER_RX_PLL_LOCK_FAIL;
@@ -990,7 +973,6 @@ int x4driver_setup_default(X4Driver_t* x4driver)
     //set_frame_length
     uint8_t rx_mframes_coarse = 0x00;
     status = x4driver_get_pif_register(x4driver,ADDR_PIF_RX_MFRAMES_COARSE_RW,&rx_mframes_coarse);
-    printf("ronen aharoni rx_mframes_coarse %d \n", rx_mframes_coarse );
     if (status != XEP_ERROR_X4DRIVER_OK) return status;
     status = x4driver_set_frame_length(x4driver,rx_mframes_coarse);
 
@@ -1037,7 +1019,6 @@ int x4driver_verify_firmware(X4Driver_t* x4driver, const uint8_t * buffer, uint3
     uint32_t status = mutex_take(x4driver);
     if (status != XEP_ERROR_X4DRIVER_OK) return status;
 
-    printf("ronen B\n");
     x4driver_set_spi_register(x4driver,ADDR_SPI_MEM_FIRST_ADDR_LSB_RW,START_OF_SRAM_LSB);//start of SRAM LSB
     x4driver_set_spi_register(x4driver,ADDR_SPI_MEM_FIRST_ADDR_MSB_RW,START_OF_SRAM_MSB);//start of SRAM MSB
     x4driver_set_spi_register(x4driver,ADDR_SPI_MEM_MODE_RW,SET_NORMAL_MODE);// take out of programming mode.
@@ -1051,18 +1032,15 @@ int x4driver_verify_firmware(X4Driver_t* x4driver, const uint8_t * buffer, uint3
     uint32_t retries = 0;
     while ((fifo_status & FIFO_NOT_EMPTY_FLAG) == FIFO_NOT_EMPTY_FLAG)
     {
- //   	printf("status %X \n" , fifo_status ) ;
         status =  x4driver_get_spi_register(x4driver,ADDR_SPI_FROM_MEM_READ_DATA_RE,&read_back);
         status =  x4driver_get_spi_register(x4driver,ADDR_SPI_SPI_MEM_FIFO_STATUS_R,&fifo_status);
         retries++;
         if (retries > max_retries)
         {
-//            printf("ronen C\n");
             mutex_give(x4driver);
             return XEP_ERROR_X4DRIVER_SRAM_FIFO_TIMEOUT_FAIL;
         }
     }
-//	printf("after status %X \n" , fifo_status ) ;
     x4driver_set_spi_register(x4driver,ADDR_SPI_MEM_MODE_RW,SET_READBACK_MODE);//set into read back mode
     for (uint32_t i = 0; i< size; i++)
     {
@@ -1082,14 +1060,7 @@ int x4driver_verify_firmware(X4Driver_t* x4driver, const uint8_t * buffer, uint3
     x4driver_set_spi_register(x4driver,ADDR_SPI_MEM_MODE_RW,SET_NORMAL_MODE);//set into read back mode
     mutex_give(x4driver);
     if (errors >0)
-    {
-//        printf("ronen D\n");
-
-    	return XEP_ERROR_X4DRIVER_8051_VERIFY_FAIL;
-    }
-
-    printf("ronen E\n");
-
+        return XEP_ERROR_X4DRIVER_8051_VERIFY_FAIL;
     return status;
 }
 
@@ -1291,7 +1262,6 @@ int x4driver_read_frame_normalized(X4Driver_t* x4driver, uint32_t* frame_counter
     status = x4driver_read_frame_bytes(x4driver, frame_counter,x4driver->spi_buffer, x4driver->frame_read_size);
 
 
-
     if (x4driver->downconversion_enabled == 0)
     {
         _x4driver_unpack_and_normalize_frame(x4driver,data,length,x4driver->spi_buffer,x4driver->frame_read_size);
@@ -1300,7 +1270,6 @@ int x4driver_read_frame_normalized(X4Driver_t* x4driver, uint32_t* frame_counter
     {
         _x4driver_unpack_and_normalize_downconverted_frame(x4driver,data,length,x4driver->spi_buffer,x4driver->frame_read_size);
     }
-
 
 
     mutex_give(x4driver);
@@ -1333,20 +1302,11 @@ int x4driver_read_frame_bytes(X4Driver_t* x4driver, uint32_t* frame_counter, uin
         mutex_give(x4driver);
         return status;
     }
-#if 1
     uint8_t radar_data_addr = ADDR_SPI_RADAR_DATA_SPI_RE;
 
-//    printf("X4driver %d \n" , x4driver->frame_read_size );
-#if 0
-    wiringXSPIDataRW( 1 ,data-1, x4driver->frame_read_size-1);
-#else
     status = x4driver->callbacks.spi_write_read(x4driver->user_reference, &radar_data_addr, 1,data, x4driver->frame_read_size);
-#endif
-//    digitalWrite( 0 , 0);
-#endif
-    _x4driver_set_x4_sw_action(x4driver,11);
 
- //   digitalWrite( 0 , 1);
+    _x4driver_set_x4_sw_action(x4driver,11);
 
     mutex_give(x4driver);
     return status;
@@ -1492,7 +1452,6 @@ int _x4driver_set_internal_register(X4Driver_t* x4driver, uint8_t address, uint8
     uint8_t retries_max = PIF_COMMAND_MAX_RETRIES;
     x4driver_get_spi_register(x4driver,ADDR_SPI_SPI_MB_FIFO_STATUS_R,&fifo_status);
     //wait for cpu to process data
-//    digitalWrite( 0 , 1);
     while (bit_is_set(fifo_status,TO_CPU_EMPTY_BIT) == BIT_NOT_SET)
     {
         x4driver_get_spi_register(x4driver,ADDR_SPI_SPI_MB_FIFO_STATUS_R,&fifo_status);
@@ -1507,11 +1466,9 @@ int _x4driver_set_internal_register(X4Driver_t* x4driver, uint8_t address, uint8
     x4driver_set_spi_register(x4driver,ADDR_SPI_TO_CPU_WRITE_DATA_WE,address);
     x4driver_set_spi_register(x4driver,ADDR_SPI_TO_CPU_WRITE_DATA_WE,command);
     x4driver_set_spi_register(x4driver,ADDR_SPI_TO_CPU_WRITE_DATA_WE,write_value);
-//    digitalWrite( 0 , 0);
 
     x4driver_get_spi_register(x4driver,ADDR_SPI_SPI_MB_FIFO_STATUS_R,&fifo_status);
     //wait for CPU to process data
-/*
     while (bit_is_set(fifo_status,TO_CPU_EMPTY_BIT) == BIT_NOT_SET)
     {
         x4driver_get_spi_register(x4driver,ADDR_SPI_SPI_MB_FIFO_STATUS_R,&fifo_status);//wait for data
@@ -1522,7 +1479,6 @@ int _x4driver_set_internal_register(X4Driver_t* x4driver, uint8_t address, uint8
             return XEP_ERROR_X4DRIVER_PIF_TIMEOUT;
         }
     }
-*/
 
     mutex_give(x4driver);
     return status;
@@ -1755,7 +1711,6 @@ int x4driver_init_clock(X4Driver_t* x4driver)
     for (uint32_t i = 0; i < ossc_lock_attemps; i++)
     {
         x4driver_get_pif_register(x4driver,ADDR_PIF_COMMON_PLL_STATUS_R,&common_pll_status_register_value);
-        printf("common pll status %X \n", common_pll_status_register_value );
         if ((common_pll_status_register_value & osc_lock_bit) != 0x00)
         {
             //lock
@@ -2079,10 +2034,6 @@ int x4driver_set_frame_length(X4Driver_t* x4driver, uint8_t cycles)
     x4driver_get_pif_register(x4driver, ADDR_PIF_RX_COUNTER_NUM_BYTES_RW,&rx_counter_num_bytes);
     x4driver->frame_read_size = rx_counter_num_bytes*nrangebins;
     mutex_give(x4driver);
-
-    printf(" ADDR_PIF_RX_MFRAMES_COARSE_RW    %d - val %d \n" ,ADDR_PIF_RX_MFRAMES_COARSE_RW,cycles );
-    printf(" ADDR_PIF_RX_MFRAMES_RW           %d - val %d \n" ,ADDR_PIF_RX_MFRAMES_RW,rx_mframes_val );
-    printf(" ADDR_PIF_RX_COUNTER_NUM_BYTES_RW %d - val %d \n" ,ADDR_PIF_RX_COUNTER_NUM_BYTES_RW,rx_counter_num_bytes );
     return status;
 }
 
@@ -2095,13 +2046,6 @@ int x4driver_set_frame_length(X4Driver_t* x4driver, uint8_t cycles)
  */
 int x4driver_init(X4Driver_t* x4driver)
 {
-#if 0
-    uint32_t status = mutex_take(x4driver);
-    x4driver->callbacks.enable_data_ready_isr(x4driver->user_reference, 1);
-    mutex_give(x4driver);
-    return status;
-#else
-//    uint8_t reset  = 1 ;
     uint32_t status = mutex_take(x4driver);
 
     // Reset x4driver struct to defaults
@@ -2160,15 +2104,7 @@ int x4driver_init(X4Driver_t* x4driver)
     x4driver->callbacks.enable_data_ready_isr(x4driver->user_reference,0);
     status = 0;
     status = x4driver_set_enable(x4driver,0);
-
     status = x4driver_set_enable(x4driver,1);
-//    x4driver_get_spi_register(x4driver, ADDR_PIF_SPI_CONFIG_PIF_RWE, &reset);
-    // Wait until X4 is stable.
-//    x4driver->callbacks.wait_us(10000);
-
-  //  reset  = 0  ;
-   // x4driver_get_spi_register(x4driver, ADDR_PIF_SPI_CONFIG_PIF_RWE, &reset);
-
     // Wait until X4 is stable.
     x4driver->callbacks.wait_us(100);
 
@@ -2180,14 +2116,12 @@ int x4driver_init(X4Driver_t* x4driver)
     {
         x4driver->initialized = 0;
         mutex_give(x4driver);
-        printf("ronen 1\n");
         return XEP_ERROR_X4DRIVER_NOK;
     }
     if (status != XEP_ERROR_X4DRIVER_OK)
     {
         x4driver->initialized = 0;
         mutex_give(x4driver);
-        printf("ronen 2\n");
         return status;
     }
     
@@ -2198,7 +2132,6 @@ int x4driver_init(X4Driver_t* x4driver)
     {
         x4driver->initialized = 0;
         mutex_give(x4driver);
-        printf("ronen 3\n");
         return status;
     }
 
@@ -2207,7 +2140,6 @@ int x4driver_init(X4Driver_t* x4driver)
     {
         x4driver->initialized = 0;
         mutex_give(x4driver);
-        printf("ronen 4\n");
         return status;
     }
     status = x4driver_init_clock(x4driver);
@@ -2215,7 +2147,6 @@ int x4driver_init(X4Driver_t* x4driver)
     {
         x4driver->initialized = 0;
         mutex_give(x4driver);
-        printf("ronen 5\n");
         return status;
     }
     status = x4driver_setup_default(x4driver);
@@ -2223,7 +2154,6 @@ int x4driver_init(X4Driver_t* x4driver)
     {
         x4driver->initialized = 0;
         mutex_give(x4driver);
-        printf("ronen 6\n");
         return status;
     }
     status = _update_normalization_variables(x4driver);
@@ -2231,7 +2161,6 @@ int x4driver_init(X4Driver_t* x4driver)
     {
         x4driver->initialized = 0;
         mutex_give(x4driver);
-        printf("ronen 7\n");
         return status;
     }
     status = x4driver_set_frame_area(x4driver,x4driver->frame_area_start,x4driver->frame_area_end);
@@ -2239,7 +2168,6 @@ int x4driver_init(X4Driver_t* x4driver)
     {
         x4driver->initialized = 0;
         mutex_give(x4driver);
-        printf("ronen 8\n");
         return status;
     }
     status = x4driver_set_downconversion(x4driver,0);
@@ -2247,13 +2175,11 @@ int x4driver_init(X4Driver_t* x4driver)
     {
         x4driver->initialized = 0;
         mutex_give(x4driver);
-        printf("ronen 9\n");
         return status;
     }
     x4driver->callbacks.enable_data_ready_isr(x4driver->user_reference, 1);
     mutex_give(x4driver);
     return status;
-#endif
 }
 
 
@@ -2797,7 +2723,6 @@ int x4driver_set_downconversion(X4Driver_t* x4driver,uint8_t enable)
  */
 int x4driver_get_frame_bin_count(X4Driver_t* x4driver, uint32_t * bins)
 {
-	static int once2 = 0 ;
     if (x4driver->downconversion_enabled == 1)
     {
         *bins = (x4driver->frame_read_size / x4driver->bytes_per_counter) / 2;          //i and q
@@ -2806,13 +2731,6 @@ int x4driver_get_frame_bin_count(X4Driver_t* x4driver, uint32_t * bins)
     {
         *bins = x4driver->frame_read_size / x4driver->bytes_per_counter;
         *bins = *bins - x4driver->frame_area_start_bin_offset - x4driver->frame_area_end_bin_offset;
-    }
-    if( once2 == 0 )
-    {
-    	once2 =  1 ;
-		printf("fsize %ld bpc %ld de %d  bins %d\n ", x4driver->frame_read_size , x4driver->bytes_per_counter , x4driver->downconversion_enabled , *bins );
-		printf("frame_area_start_bin_offset %d\n ", x4driver->frame_area_start_bin_offset  );
-		printf("x4driver->frame_area_end_bin_offset %d\n ", x4driver->frame_area_end_bin_offset  );
     }
     return XEP_ERROR_X4DRIVER_OK;
 }
