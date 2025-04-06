@@ -169,10 +169,14 @@ readonly DOCKER_IMAGE="debian-docker"
 readonly HOSTNAME=$( echo "$DOCKER_IMAGE" | sed 's/\./-/g')
 
 # Verify qemu-user-static is installed
-if [ ! -f /usr/bin/qemu-aarch64-static ]; then
-    echo "Error: Please install qemu-user-static on host, required for debian"
-    exit -1
+# if we are running on arm64, we don't need qemu-user-static
+if [ "$(uname -m)" = "aarch64" ]; then
+    if [ ! -f /usr/bin/qemu-aarch64-static ]; then
+        echo "Error: Please install qemu-user-static on host, required for debian"
+        exit -1
+    fi
 fi
+
 
 # Build container if the image does not exist, the cache needs to be rebuilt, or the build flag is set
 if ! docker images | grep -q "${DOCKER_IMAGE}" \
@@ -194,13 +198,19 @@ fi
 
 set_quirks
 
+# Determine if we're running on macOS or Linux
+KERNEL_MOUNT=""
+if [[ "$(uname)" != "Darwin" ]]; then
+    KERNEL_MOUNT="-v /linux-kernel:/linux-kernel"
+fi
+
 docker run ${EXTRA_ARGS} --rm -e HOST_USER_ID=$uid -e HOST_USER_GID=$gid \
 	-v ~/.ssh:/home/holosis/.ssh \
 	-v ${WORKDIR}:/workdir \
 	-v ~/.gitconfig:/tmp/host_gitconfig \
 	-v /usr/src:/usr/src \
 	-v /lib/modules:/lib/modules \
-	-v /linux-kernel:/linux-kernel \
+	${KERNEL_MOUNT} \
 	--hostname ${HOSTNAME} \
 	${DOCKER_VOLUMES} \
 	${INTERACTIVE} \
