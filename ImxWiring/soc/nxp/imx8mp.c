@@ -497,7 +497,7 @@ static int nxpIMX8MPWaitForInterrupt(int i, int ms)
 	}*/
 	once_printf = 0;
 
-	ret = gpiod_line_event_wait(line, &ts);
+	ret = gpiod_line_event_wait(line, NULL);
 	if (ret < 0) {
 		// perror("Wait event notification failed!\n");
 		gpiod_line_release(line);
@@ -517,7 +517,7 @@ static int nxpIMX8MPWaitForInterrupt(int i, int ms)
 
 	}
 
-	return ret;
+	return 1;
 }
 
 static int nxpIMX8MPGC(void)
