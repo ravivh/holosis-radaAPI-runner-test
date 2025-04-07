@@ -470,6 +470,7 @@ static int nxpIMX8MPWaitForInterrupt(int i, int ms)
 	int gpio_bank = -1;
 	int gpio_pin  = -1;
 	struct timespec ts = { 3, 0 };
+	struct gpiod_line_event event;
 	int ret = -1;
 
 	/*if (ms == -1) {
@@ -507,6 +508,13 @@ static int nxpIMX8MPWaitForInterrupt(int i, int ms)
 		gpiod_chip_close(chip);
 		printf("Wait event notification on line timeout. Shouldn't be printed.\n");
 		return 0;
+	}
+
+	ret = gpiod_line_event_read(line, &event);
+	if (ret < 0) {
+		printf("Read last event notification failed\n");
+		return -1;
+
 	}
 
 	return ret;
