@@ -24,8 +24,8 @@ GIT_REL[buildroot]=${BUILDROOT_VERSION}
 
 ## Debian Options
 : ${DEBIAN_VERSION:=bookworm}
-: ${DEBIAN_ROOTFS_SIZE:=936M}
-: ${DEBIAN_PACKAGES:="apt-transport-https,busybox,ca-certificates,can-utils,chrony,curl,e2fsprogs,ethtool,fdisk,gpiod,haveged,i2c-tools,ifupdown,iputils-ping,isc-dhcp-client,initramfs-tools,libiio-utils,lm-sensors,locales,nano,net-tools,ntpdate,openssh-server,psmisc,rfkill,sudo,systemd,systemd-sysv,dbus,tio,usbutils,wget,xterm,xz-utils"}
+: ${DEBIAN_ROOTFS_SIZE:=1436M}
+: ${DEBIAN_PACKAGES:="apt-transport-https,busybox,ca-certificates,can-utils,chrony,curl,e2fsprogs,ethtool,fdisk,gpiod,haveged,i2c-tools,ifupdown,iputils-ping,isc-dhcp-client,initramfs-tools,libiio-utils,lm-sensors,locales,nano,net-tools,ntpdate,openssh-server,psmisc,rfkill,sudo,systemd,systemd-sysv,dbus,tio,usbutils,wget,xterm,xz-utils,gcc"}
 : ${HOST_NAME:=imx8mp}
 
 ## Kernel Options
@@ -356,7 +356,36 @@ sync
 # power-off
 reboot -f
 EOF
+		cat > stage1/install_poetry.sh << EOF
+#!/bin/sh
+ntpdate pool.ntp.org
+
+wget -qO- https://pascalroeleven.nl/deb-pascalroeleven.gpg | sudo tee /etc/apt/keyrings/deb-pascalroeleven.gpg
+
+cat <<EOT | sudo tee /etc/apt/sources.list.d/pascalroeleven.sources
+Types: deb
+URIs: http://deb.pascalroeleven.nl/python3.12
+Suites: bookworm-backports
+Components: main
+Signed-By: /etc/apt/keyrings/deb-pascalroeleven.gpg
+EOT
+apt update
+apt install -y python3.12 python3.12-dev pipx
+usermod -d /root root
+pipx install poetry
+echo "export PATH=\"/.local/bin:\$PATH\"" >> /root/.bashrc
+#su - root -c "pipx install poetry"
+
+# delete self
+rm -f /install_poetry.sh
+
+# power-off
+reboot -f
+EOF
+
+
 		chmod +x stage1/stage2.sh
+		chmod +x stage1/install_poetry.sh
 
 		# create empty partition image
 		dd if=/dev/zero of=rootfs.e2.orig bs=1 count=0 seek=${DEBIAN_ROOTFS_SIZE}
@@ -378,6 +407,22 @@ EOF
 			-no-reboot \
 			-kernel "${ROOTDIR}/images/tmp/linux/boot/Image" \
 			-append "console=ttyAMA0 root=/dev/vda rootfstype=ext2 ip=dhcp rw init=/stage2.sh" \
+
+		:
+
+		qemu-system-aarch64 \
+			-m 1G \
+			-M virt \
+			-cpu cortex-a57 \
+			-smp 4 \
+			-netdev user,id=eth0 \
+			-device virtio-net-device,netdev=eth0 \
+			-drive file=rootfs.e2.orig,if=none,format=raw,id=hd0 \
+			-device virtio-blk-device,drive=hd0 \
+			-nographic \
+			-no-reboot \
+			-kernel "${ROOTDIR}/images/tmp/linux/boot/Image" \
+			-append "console=ttyAMA0 root=/dev/vda rootfstype=ext2 ip=dhcp rw init=/install_poetry.sh" \
 
 		:
 
