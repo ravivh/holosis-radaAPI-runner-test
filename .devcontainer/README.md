@@ -51,3 +51,17 @@ DISTRO=debian ./build-sdk.sh --all
 ```bash
 ./build-sdk.sh --help
 ```
+
+#### Running qemu with the kernel and rootfs:
+```bash
+sudo qemu-system-aarch64 \
+    -machine virt \
+    -cpu cortex-a57 \
+    -m 2048 \
+    -nographic \
+    -kernel images/tmp/linux/boot/Image \
+    -append "root=/dev/vda console=ttyAMA0 ip=dhcp rw " \
+    -drive file=images/tmp/rootfs.ext4,format=raw,if=virtio \
+    -netdev user,id=net0,hostfwd=tcp::2222-:22 \
+    -device virtio-net-device,netdev=net0
+```
