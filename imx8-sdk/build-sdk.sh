@@ -25,7 +25,7 @@ GIT_REL[buildroot]=${BUILDROOT_VERSION}
 
 ## Debian Options
 : ${DEBIAN_VERSION:=bookworm}
-: ${DEBIAN_ROOTFS_SIZE:=2236M}
+: ${DEBIAN_ROOTFS_SIZE:=3236M}
 : ${DEBIAN_PACKAGES:="apt-transport-https,busybox,ca-certificates,can-utils,chrony,curl,e2fsprogs,ethtool,fdisk,gpiod,haveged,i2c-tools,ifupdown,iputils-ping,isc-dhcp-client,initramfs-tools,libiio-utils,lm-sensors,locales,nano,net-tools,ntpdate,openssh-server,psmisc,rfkill,sudo,systemd,systemd-sysv,dbus,tio,usbutils,wget,xterm,xz-utils,gcc,cloud-guest-utils"}
 : ${HOST_NAME:=imx8mp}
 
