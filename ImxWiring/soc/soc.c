@@ -208,21 +208,22 @@ static int changeOwner(char *file) {
 	return 0;
 }
 
-int soc_sysfs_gpio_reset_value(struct soc_t *soc, char *path) {
+int soc_sysfs_gpio_reset_value(struct soc_t *soc, char *path)
+{
 	unsigned int c = 0;
 	int fd = 0, i = 0, count = 0;
 
-	if(changeOwner(path) == -1) {
+	if (changeOwner(path) == -1) {
 		return -1;
 	}
-	if((fd = open(path, O_RDWR)) <= 0) {
+	if ((fd = open(path, O_RDWR)) <= 0) {
 		wiringXLog(LOG_ERR, "wiringX failed to open %s for gpio reading (%s)", path, strerror(errno));
 		return -1;
 	} else {
 		ioctl(fd, FIONREAD, &count);
-		for(i=0; i<count; ++i) {
+		for (i=0; i<count; ++i) {
 			int x = read(fd, &c, 1);
-			if(x != 1) {
+			if (x != 1) {
 				continue;
 			}
 		}

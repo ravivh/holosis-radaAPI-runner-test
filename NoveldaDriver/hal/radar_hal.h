@@ -8,6 +8,7 @@
 #define RADAR_HAL_H
 
 #include <stdint.h>
+#include <stdio.h>
 //#include "xep_hal.h"
 //#include "xtio_spi.h"
 
@@ -15,13 +16,30 @@
 #define X4_ENABLE_PIN 5
 #define X4_GPIO_INT 6
 #define SPI_CHANNEL 0
-#else
-#define X4_TEST_PIN   0
-#define X4_ENABLE_PIN 11
-#define X4_GPIO_INT 7
-#define SPI_CHANNEL 1
-
 #endif
+
+#ifdef IMX6
+//1 : map[0]=73  -> GPIO3_IO09, that is AntRxi_LSB
+#define X4_TEST_PIN 0
+//2 : map[11]=59 -> GPIO2_IO27, that is ???
+#define X4_ENABLE_PIN 11
+//3 : map[7]=1   -> GPIO1_IO01, that is UART3_RXD
+#define X4_GPIO_INT 7
+#endif
+
+#ifdef IMX8
+//1 GPIO135->(through enum)->2
+#define X4_TEST_PIN 2
+//2 GPIO126->(through enum)->8
+#define X4_ENABLE_PIN 8
+//3 GPIO134->(through enum)->1
+#define X4_GPIO_INT 1
+#endif
+
+#define SPI_CHANNEL 1
+#define MHZ 1000000
+#define SPI_CLK 20 * MHZ
+
 
 /**
  * Structure to hold information about the current radar.
