@@ -12,6 +12,7 @@ GIT_REL[linux-imx]=lf-5.15.y
 GIT_REL[imx-mkimage]=lf-6.1.1-1.0.0
 GIT_REL[imx-optee-os]=lf-6.6.23-2.0.0
 GIT_REL[mfgtools]=uuu_1.4.77
+SDK_ROOT=$(dirname $(realpath "$0"))
 
 # Distribution for rootfs
 : ${DISTRO:=buildroot}
@@ -24,8 +25,8 @@ GIT_REL[buildroot]=${BUILDROOT_VERSION}
 
 ## Debian Options
 : ${DEBIAN_VERSION:=bookworm}
-: ${DEBIAN_ROOTFS_SIZE:=1436M}
-: ${DEBIAN_PACKAGES:="apt-transport-https,busybox,ca-certificates,can-utils,chrony,curl,e2fsprogs,ethtool,fdisk,gpiod,haveged,i2c-tools,ifupdown,iputils-ping,isc-dhcp-client,initramfs-tools,libiio-utils,lm-sensors,locales,nano,net-tools,ntpdate,openssh-server,psmisc,rfkill,sudo,systemd,systemd-sysv,dbus,tio,usbutils,wget,xterm,xz-utils,gcc"}
+: ${DEBIAN_ROOTFS_SIZE:=2236M}
+: ${DEBIAN_PACKAGES:="apt-transport-https,busybox,ca-certificates,can-utils,chrony,curl,e2fsprogs,ethtool,fdisk,gpiod,haveged,i2c-tools,ifupdown,iputils-ping,isc-dhcp-client,initramfs-tools,libiio-utils,lm-sensors,locales,nano,net-tools,ntpdate,openssh-server,psmisc,rfkill,sudo,systemd,systemd-sysv,dbus,tio,usbutils,wget,xterm,xz-utils,gcc,cloud-guest-utils"}
 : ${HOST_NAME:=imx8mp}
 
 ## Kernel Options
@@ -374,7 +375,8 @@ apt install -y python3.12 python3.12-dev pipx
 usermod -d /root root
 pipx install poetry
 echo "export PATH=\"/.local/bin:\$PATH\"" >> /root/.bashrc
-#su - root -c "pipx install poetry"
+
+systemctl enable resize-rootfs.service
 
 # delete self
 rm -f /install_poetry.sh
@@ -386,6 +388,7 @@ EOF
 
 		chmod +x stage1/stage2.sh
 		chmod +x stage1/install_poetry.sh
+		cp -a $SDK_ROOT/../rootfs-overlay/. stage1/
 
 		# create empty partition image
 		dd if=/dev/zero of=rootfs.e2.orig bs=1 count=0 seek=${DEBIAN_ROOTFS_SIZE}

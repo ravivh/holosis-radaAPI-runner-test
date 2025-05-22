@@ -1,0 +1,12 @@
+[Unit]
+Description=Resize root filesystem on first boot
+After=network.target local-fs.target
+ConditionPathExists=/usr/bin/resize-rootfs.sh
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/resize-rootfs.sh
+RemainAfterExit=true
+
+[Install]
+WantedBy=multi-user.target

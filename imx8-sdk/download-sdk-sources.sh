@@ -83,6 +83,7 @@ SOLIDRUN_SDK=(
 connection_check
 
 echo "Entering sdk directory..."
+cp -a rootfs-overlay $WORKING_DIR/
 cd "$WORKING_DIR"
 clone_git_commit "${SOLIDRUN_SDK[@]}"
 #download_and_verify "${TOOLCHAIN[@]}"
