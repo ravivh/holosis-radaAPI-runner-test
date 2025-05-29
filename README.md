@@ -40,3 +40,55 @@ Holosis Connectivity:
   user: <host-pc-username>
   password: <host-pc-password>
   python_command: python3 RadarApi.py
+
+
+## Localhost example
+
+After flashing the sdcard expand the rootfs partition to maximum sdcard capacity.
+```bash
+dd if=<sdcard img> of=<sdcard dev>
+growpart <sdcard dev> 2
+resize2fs <sdcard dev>
+```
+
+Build the RadarApi library. Copy both the RadarApi.py and libRadarApi.so
+to the /usr/bin bath on the board.
+```bash
+cd .devcontainer
+mkdir -p work
+sudo ./run.sh -w $(pwd)/work -v $(pwd)/../:/workdir/RadarApi/
+mkdir -p build && cd build
+cmake ../ -DCMAKE_TOOLCHAIN_FILE=../cmake/aarch64-linux-gnu.cmake -DIMX8="True"
+cmake --build .
+scp RadarApi/libRadarApi.so ../RadarApi/RadarApi.py root@<ip>:/usr/bin
+```
+
+Copy the radar-client repository to the system, make sure branch localhost_ssh is checked out.
+Run poetry install
+```bash
+cd radar-client
+poetry lock
+poetry install
+```
+
+To run the client first step is to start up the server.
+```
+RadarApi.py &
+```
+After that run the client script in another ssh terminal
+```
+poetry run python RadarClientExample.py
+```
+
+
+### Installing Holosis repo
+Copy the repository to the system and edit the pyproject.toml in the follwing way:
+```toml
+radar-client = { path="<where client is copied>", develop=true }
+#aws-manager = { git = "git@github.com:Holosis-Health/aws-manager.git", rev = "main" }
+```
+After the toml is edited you can install the depependecies with poetry.
+```
+poetry lock
+poetry install
+```
