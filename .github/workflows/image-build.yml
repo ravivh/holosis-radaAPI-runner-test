@@ -1,0 +1,15 @@
+name: sdk-image-build
+run-name: SDK build
+on: [push]
+jobs:
+  run-make:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo rm -rf ./SDK && mkdir -p ./SDK
+      - run: ./imx8-sdk/download-sdk-sources.sh ./SDK
+      - run: sudo rm -rf ./holosis-work/ && mkdir -p ./holosis-work/
+      - run: sudo .devcontainer/run.sh -w $(pwd)/holosis-work/ -v  $(pwd)/SDK/:/workdir/SDK -b
+      - run: cd /workdir/SDK/imx8mp_build
+      - run: DISTRO=debian ./build-sdk.sh --all
+      - run: exit
