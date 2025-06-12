@@ -1,6 +1,7 @@
 #!/bin/bash
 
 echo -e "\e[1;36m holosis download sdk script v0.1 \e[0m"
+SCRIPT_DIR=$(realpath $(dirname $0))
 
 usage() {
     echo "Usage: $0 <sdk-rootdir>"
@@ -56,7 +57,7 @@ clone_git_commit() {
 
     git clone $url
     cd $gitroot
-    cp ../../build-sdk.sh .
+    cp $SCRIPT_DIR/build-sdk.sh .
     git checkout $commithash
 }
 
@@ -83,7 +84,7 @@ SOLIDRUN_SDK=(
 connection_check
 
 echo "Entering sdk directory..."
-cp -a rootfs-overlay $WORKING_DIR/
+cp -a $SCRIPT_DIR/rootfs-overlay $WORKING_DIR/
 cd "$WORKING_DIR"
 clone_git_commit "${SOLIDRUN_SDK[@]}"
 #download_and_verify "${TOOLCHAIN[@]}"
