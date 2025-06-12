@@ -9,7 +9,4 @@ jobs:
       - run: sudo rm -rf ./SDK && mkdir -p ./SDK
       - run: ./imx8-sdk/download-sdk-sources.sh ./SDK
       - run: sudo rm -rf ./holosis-work/ && mkdir -p ./holosis-work/
-      - run: sudo .devcontainer/run.sh -w $(pwd)/holosis-work/ -v  $(pwd)/SDK/:/workdir/SDK -b
-      - run: cd /workdir/SDK/imx8mp_build
-      - run: DISTRO=debian ./build-sdk.sh --all
-      - run: exit
+      - run: sudo .devcontainer/run.sh -w $(pwd)/holosis-work/ -v  $(pwd)/SDK/:/workdir/SDK -b --command "cd /workdir/SDK/imx8mp_build && DISTRO=debian ./build-sdk.sh --all"
